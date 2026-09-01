@@ -36,8 +36,12 @@ jobs:
         working-directory: frontend
         run: bun install --frozen-lockfile
 
+      - name: Build frontend
+        working-directory: frontend
+        run: bun run build
+
       - name: Test
-        run: go test ./...
+        run: go test -tags gtk3 ./...
 
       - name: Build Linux application
         run: wails3 build -tags gtk3

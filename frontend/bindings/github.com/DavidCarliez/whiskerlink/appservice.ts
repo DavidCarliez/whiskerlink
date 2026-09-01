@@ -35,6 +35,10 @@ export function InspectTrustedFileOffer(deviceID: string): $CancellablePromise<d
     return $Call.ByID(3232435551, deviceID);
 }
 
+export function ParseFileInvite(value: string): $CancellablePromise<domain$0.FileInvite> {
+    return $Call.ByID(3935231462, value);
+}
+
 export function ParseServiceInvite(value: string): $CancellablePromise<domain$0.ServiceInvite> {
     return $Call.ByID(561645253, value);
 }
@@ -75,6 +79,6 @@ export function StopSession(id: string): $CancellablePromise<void> {
     return $Call.ByID(3505525398, id);
 }
 
-export function TakePendingServiceInvite(): $CancellablePromise<string> {
-    return $Call.ByID(99441782);
+export function TakePendingInvite(): $CancellablePromise<string> {
+    return $Call.ByID(1099784657);
 }

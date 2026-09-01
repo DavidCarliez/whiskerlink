@@ -25,8 +25,8 @@ type AppService struct {
 	emitMu sync.RWMutex
 	emit   func(domain.Snapshot)
 
-	pendingMu            sync.Mutex
-	pendingServiceInvite string
+	pendingMu     sync.Mutex
+	pendingInvite string
 }
 
 func NewAppService(store *storage.Store) (*AppService, error) {
@@ -90,17 +90,17 @@ func (a *AppService) ParseServiceInvite(value string) (domain.ServiceInvite, err
 	return tailnet.ParseServiceInvite(value)
 }
 
-func (a *AppService) TakePendingServiceInvite() string {
+func (a *AppService) TakePendingInvite() string {
 	a.pendingMu.Lock()
 	defer a.pendingMu.Unlock()
-	value := a.pendingServiceInvite
-	a.pendingServiceInvite = ""
+	value := a.pendingInvite
+	a.pendingInvite = ""
 	return value
 }
 
-func (a *AppService) queueServiceInvite(value string) {
+func (a *AppService) queueInvite(value string) {
 	a.pendingMu.Lock()
-	a.pendingServiceInvite = strings.TrimSpace(value)
+	a.pendingInvite = strings.TrimSpace(value)
 	a.pendingMu.Unlock()
 }
 
@@ -119,6 +119,10 @@ func (a *AppService) StartFileOffer(req transfer.StartOfferRequest) (domain.Sess
 
 func (a *AppService) InspectFileOffer(token string) (domain.FileManifest, error) {
 	return a.transfers.Inspect(context.Background(), strings.TrimSpace(token))
+}
+
+func (a *AppService) ParseFileInvite(value string) (domain.FileInvite, error) {
+	return transfer.ParseFileInvite(value)
 }
 
 func (a *AppService) InspectTrustedFileOffer(deviceID string) (domain.FileManifest, error) {

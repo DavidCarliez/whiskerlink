@@ -44,10 +44,10 @@ Linux requires GTK 3 and WebKitGTK 4.1 at runtime. Package names vary by distrib
 2. Choose files or choose one folder.
 3. Optionally name the transfer and select the trusted host identity.
 4. Create the offer.
-5. Open **Activity** and copy the invite or generated receiver command.
+5. Open **Activity** and copy the generated `whiskerlink://receive` invite.
 6. Keep the session open until the receiver confirms completion.
 
-A receiver running WhiskerLink can inspect the manifest, select files, choose a destination, and select a collision policy before accepting anything.
+A receiver running WhiskerLink can open the invite or paste it into **Receive files**. WhiskerLink validates the capability and inspects the manifest automatically, but nothing is written until the receiver selects files, chooses a destination and collision policy, and explicitly accepts.
 
 ### Receiver without WhiskerLink
 

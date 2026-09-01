@@ -170,9 +170,16 @@ func (m *Manager) StartOffer(ctx context.Context, req StartOfferRequest) (domain
 			return domain.Session{}, err
 		}
 	}
+	invite, err := EncodeFileInvite(domain.FileInvite{Token: token, Label: offer.Manifest.Label})
+	if err != nil {
+		_ = server.Close()
+		_ = offer.Close()
+		m.failTransfer(transfer.ID, err)
+		return domain.Session{}, err
+	}
 	session := domain.Session{
 		ID: uuid.NewString(), Kind: domain.SessionFileOffer, Label: offer.Manifest.Label,
-		State: "listening", Token: token, RemotePort: ProtocolPort, Transport: "waiting",
+		State: "listening", Token: token, Invite: invite, RemotePort: ProtocolPort, Transport: "waiting",
 		Persistent: req.Persistent, CLICompatible: offer.Manifest.CLICompatible, CreatedAt: now,
 	}
 	m.mu.Lock()

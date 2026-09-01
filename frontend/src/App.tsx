@@ -21,6 +21,7 @@ type Manifest = { protocolVersion: number; transferId: string; label: string; fi
 type Snapshot = { sessions: Session[]; transfers: Transfer[]; trustedDevices: Device[] }
 type ServiceType = 'http' | 'https' | 'tcp'
 type ServiceInvite = { token: string; remotePort: number; label: string; serviceType: ServiceType }
+type FileInvite = { token: string; label: string }
 
 const emptySnapshot: Snapshot = { sessions: [], transfers: [], trustedDevices: [] }
 
@@ -121,9 +122,36 @@ function App() {
     }
   }
 
-  const takePendingServiceInvite = async () => {
-    const value = await API.TakePendingServiceInvite()
-    if (value) await applyServiceInvite(value)
+  const applyFileInvite = async (value: string) => {
+    setBusy(true)
+    try {
+      const invite = await API.ParseFileInvite(value) as FileInvite
+      setReceiveDevice('')
+      setReceiveToken(invite.token)
+      setManifest(null)
+      setView('receive')
+      const result = await API.InspectFileOffer(invite.token) as Manifest
+      setManifest(result)
+      setSelectedFiles(result.files.map((file) => file.path))
+      setNotice({ kind: 'ok', text: 'File invite verified. Choose a destination before accepting.' })
+    } catch (error) {
+      setNotice({ kind: 'error', text: errorText(error) })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const applyInvite = async (value: string) => {
+    if (value.startsWith('whiskerlink://receive?')) {
+      await applyFileInvite(value)
+      return
+    }
+    await applyServiceInvite(value)
+  }
+
+  const takePendingInvite = async () => {
+    const value = await API.TakePendingInvite()
+    if (value) await applyInvite(value)
   }
   useEffect(() => {
     refresh().catch((error) => setNotice({ kind: 'error', text: errorText(error) }))
@@ -131,8 +159,8 @@ function App() {
   }, [])
 
   useEffect(() => {
-    const unsubscribe = Events.On('service-invite', () => { void takePendingServiceInvite() })
-    void takePendingServiceInvite()
+    const unsubscribe = Events.On('invite', () => { void takePendingInvite() })
+    void takePendingInvite()
     return unsubscribe
   }, [])
 
@@ -264,7 +292,10 @@ function App() {
         </section>}
 
         {view === 'receive' && <section className="page narrow"><Intro number="02" title="Inspect before receiving" text="Connection metadata is validated before the manifest is shown. Nothing is written until you accept the offer." />
-          <div className="panel form-panel"><label>Source<select value={receiveDevice} onChange={(e) => { setReceiveDevice(e.target.value); setManifest(null) }}><option value="">Temporary invite token</option>{snapshot.trustedDevices.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select></label>{!receiveDevice && <label>Tailcat invite<textarea value={receiveToken} onChange={(e) => { setReceiveToken(e.target.value); setManifest(null) }} placeholder="tc…" rows={3} /></label>}<button disabled={busy || (!receiveDevice && !receiveToken.trim())} onClick={inspectOffer}>Inspect offer</button>
+          <div className="panel form-panel">
+            <label>Source<select value={receiveDevice} onChange={(e) => { setReceiveDevice(e.target.value); setManifest(null) }}><option value="">WhiskerLink invite or Tailcat token</option>{snapshot.trustedDevices.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select></label>
+            {!receiveDevice && <label>File invite or Tailcat token<textarea value={receiveToken} onChange={(e) => { setReceiveToken(e.target.value); setManifest(null) }} onPaste={(event) => { const value = event.clipboardData.getData('text').trim(); if (value.startsWith('whiskerlink://')) { event.preventDefault(); void applyInvite(value) } }} placeholder="whiskerlink://receive?… or tc…" rows={3} /><small>WhiskerLink invites inspect the manifest automatically.</small></label>}
+            <button disabled={busy || (!receiveDevice && !receiveToken.trim())} onClick={inspectOffer}>Inspect offer</button>
           {manifest && <div className="manifest"><div><strong>{manifest.label}</strong><small>{manifest.files.length} files · {formatBytes(manifest.totalBytes)}</small></div><div className="manifest-files">{manifest.files.map((file) => <label key={file.path}><input type="checkbox" checked={selectedFiles.includes(file.path)} onChange={() => setSelectedFiles((current) => current.includes(file.path) ? current.filter((p) => p !== file.path) : [...current, file.path])} /><span>{file.path}</span><small>{formatBytes(file.size)}</small></label>)}</div><label>Destination<div className="picker"><button onClick={chooseDestination}>Choose folder</button><span>{destination || 'No destination selected'}</span></div></label><label>Existing files<select value={collision} onChange={(e) => setCollision(e.target.value)}><option value="rename">Keep both</option><option value="overwrite">Replace after verification</option><option value="skip">Skip existing</option></select></label><button className="primary wide" disabled={busy || !destination || !selectedFiles.length} onClick={receiveFiles}>Accept selected files</button></div>}</div>
         </section>}
 
@@ -286,7 +317,7 @@ function App() {
           <Intro number="04" title="Open a remote service locally" text="Paste one WhiskerLink invite. A loopback listener maps browser, database, and IDE traffic through Tailcat." />
           <div className="panel form-panel">
             <label>Source<select value={connectDevice} onChange={(e) => setConnectDevice(e.target.value)}><option value="">WhiskerLink invite or Tailcat token</option>{snapshot.trustedDevices.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select></label>
-            {!connectDevice && <label>Service invite or Tailcat token<textarea value={connectToken} onChange={(e) => setConnectToken(e.target.value)} onPaste={(event) => { const value = event.clipboardData.getData('text').trim(); if (value.startsWith('whiskerlink://')) { event.preventDefault(); void applyServiceInvite(value) } }} placeholder="whiskerlink://connect?… or tc…" rows={3} /><small>WhiskerLink invites fill the remaining fields automatically.</small></label>}
+            {!connectDevice && <label>Service invite or Tailcat token<textarea value={connectToken} onChange={(e) => setConnectToken(e.target.value)} onPaste={(event) => { const value = event.clipboardData.getData('text').trim(); if (value.startsWith('whiskerlink://')) { event.preventDefault(); void applyInvite(value) } }} placeholder="whiskerlink://connect?… or tc…" rows={3} /><small>WhiskerLink invites fill the remaining fields automatically.</small></label>}
             <label>Connection label<input value={connectLabel} onChange={(e) => setConnectLabel(e.target.value)} /></label>
             <label>Service type<select value={connectServiceType} onChange={(e) => setConnectServiceType(e.target.value as ServiceType)}><option value="http">HTTP website or API</option><option value="https">HTTPS website or API</option><option value="tcp">Other TCP service</option></select></label>
             <div className="field-grid">
@@ -321,7 +352,7 @@ function receiverCommand(platform: ReceiverPlatform, token: string): string {
 }
 
 function SessionCard({ session, onCopied, onError, onStop }: { session: Session; onCopied: (text: string) => void; onError: (text: string) => void; onStop: (id: string) => void }) {
-  const shareValue = session.kind === 'service-share' ? session.invite : session.token
+  const shareValue = session.invite || session.token
   const serviceURL = session.kind === 'service-link' && session.localAddress
     ? localServiceURL(session.localAddress, session.serviceType)
     : null

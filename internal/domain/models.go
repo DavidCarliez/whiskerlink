@@ -17,6 +17,11 @@ type ServiceInvite struct {
 	ServiceType string `json:"serviceType"`
 }
 
+type FileInvite struct {
+	Token string `json:"token"`
+	Label string `json:"label"`
+}
+
 type Session struct {
 	ID            string      `json:"id"`
 	Kind          SessionKind `json:"kind"`

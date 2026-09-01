@@ -11,7 +11,6 @@ import (
 
 	"github.com/DavidCarliez/whiskerlink/internal/domain"
 	"github.com/DavidCarliez/whiskerlink/internal/storage"
-	"github.com/DavidCarliez/whiskerlink/internal/tailnet"
 )
 
 //go:embed all:frontend/dist
@@ -42,20 +41,20 @@ func main() {
 	}
 
 	var window *application.WebviewWindow
-	presentServiceInvite := func(value string) {
-		invite := serviceInviteFromArgs([]string{value})
+	presentInvite := func(value string) {
+		invite := inviteFromArgs([]string{value})
 		if invite == "" {
 			return
 		}
-		service.queueServiceInvite(invite)
+		service.queueInvite(invite)
 		if window != nil {
-			window.EmitEvent("service-invite", nil)
+			window.EmitEvent("invite", nil)
 			window.Restore()
 			window.Focus()
 		}
 	}
-	if invite := serviceInviteFromArgs(os.Args); invite != "" {
-		service.queueServiceInvite(invite)
+	if invite := inviteFromArgs(os.Args); invite != "" {
+		service.queueInvite(invite)
 	}
 
 	app := application.New(application.Options{
@@ -75,14 +74,14 @@ func main() {
 		SingleInstance: &application.SingleInstanceOptions{
 			UniqueID: "io.github.davidcarliez.whiskerlink",
 			OnSecondInstanceLaunch: func(data application.SecondInstanceData) {
-				if invite := serviceInviteFromArgs(data.Args); invite != "" {
-					presentServiceInvite(invite)
+				if invite := inviteFromArgs(data.Args); invite != "" {
+					presentInvite(invite)
 				}
 			},
 		},
 	})
 	app.Event.OnApplicationEvent(events.Common.ApplicationLaunchedWithUrl, func(event *application.ApplicationEvent) {
-		presentServiceInvite(event.Context().URL())
+		presentInvite(event.Context().URL())
 	})
 	service.setEmitter(func(snapshot domain.Snapshot) {
 		app.Event.Emit("snapshot", snapshot)
@@ -133,9 +132,9 @@ func main() {
 	service.shutdown()
 }
 
-func serviceInviteFromArgs(args []string) string {
+func inviteFromArgs(args []string) string {
 	for _, arg := range args {
-		if strings.HasPrefix(arg, tailnet.ServiceInviteScheme+"://connect?") {
+		if strings.HasPrefix(arg, "whiskerlink://connect?") || strings.HasPrefix(arg, "whiskerlink://receive?") {
 			return arg
 		}
 	}

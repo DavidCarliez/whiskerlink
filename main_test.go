@@ -2,12 +2,18 @@ package main
 
 import "testing"
 
-func TestServiceInviteFromArgs(t *testing.T) {
-	invite := "whiskerlink://connect?token=example&port=80&type=http"
-	if got := serviceInviteFromArgs([]string{"whiskerlink", "--verbose", invite}); got != invite {
-		t.Fatalf("serviceInviteFromArgs() = %q, want %q", got, invite)
+func TestInviteFromArgs(t *testing.T) {
+	for _, invite := range []string{
+		"whiskerlink://connect?token=example&port=80&type=http",
+		"whiskerlink://receive?token=example",
+	} {
+		if got := inviteFromArgs([]string{"whiskerlink", "--verbose", invite}); got != invite {
+			t.Fatalf("inviteFromArgs() = %q, want %q", got, invite)
+		}
 	}
-	if got := serviceInviteFromArgs([]string{"whiskerlink", "https://example.com"}); got != "" {
-		t.Fatalf("serviceInviteFromArgs() accepted unrelated URL %q", got)
+	for _, unrelated := range []string{"https://example.com", "whiskerlink://unknown?token=example"} {
+		if got := inviteFromArgs([]string{"whiskerlink", unrelated}); got != "" {
+			t.Fatalf("inviteFromArgs() accepted unrelated URL %q", got)
+		}
 	}
 }

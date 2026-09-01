@@ -8,6 +8,11 @@ export interface FileEntry {
     "sha256": string;
 }
 
+export interface FileInvite {
+    "token": string;
+    "label": string;
+}
+
 export interface FileManifest {
     "protocolVersion": number;
     "transferId": string;

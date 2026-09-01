@@ -8,6 +8,7 @@ export {
 
 export type {
     FileEntry,
+    FileInvite,
     FileManifest,
     ServiceInvite,
     Session,

@@ -24,6 +24,9 @@ type AppService struct {
 
 	emitMu sync.RWMutex
 	emit   func(domain.Snapshot)
+
+	pendingMu            sync.Mutex
+	pendingServiceInvite string
 }
 
 func NewAppService(store *storage.Store) (*AppService, error) {
@@ -69,17 +72,36 @@ func (a *AppService) ShareService(req tailnet.ShareServiceRequest) (domain.Sessi
 }
 
 func (a *AppService) ConnectService(req tailnet.ConnectServiceRequest) (domain.Session, error) {
+	req.Token = strings.TrimSpace(req.Token)
 	return a.sessions.ConnectService(context.Background(), req)
 }
 
-func (a *AppService) ConnectTrustedService(deviceID, label string, remotePort, localPort uint16) (domain.Session, error) {
+func (a *AppService) ConnectTrustedService(deviceID, label string, remotePort, localPort uint16, serviceType string) (domain.Session, error) {
 	token, err := a.store.DeviceToken(deviceID)
 	if err != nil {
 		return domain.Session{}, err
 	}
 	return a.sessions.ConnectService(context.Background(), tailnet.ConnectServiceRequest{
-		Label: label, Token: token, RemotePort: remotePort, LocalPort: localPort,
+		Label: label, Token: token, RemotePort: remotePort, LocalPort: localPort, ServiceType: serviceType,
 	})
+}
+
+func (a *AppService) ParseServiceInvite(value string) (domain.ServiceInvite, error) {
+	return tailnet.ParseServiceInvite(value)
+}
+
+func (a *AppService) TakePendingServiceInvite() string {
+	a.pendingMu.Lock()
+	defer a.pendingMu.Unlock()
+	value := a.pendingServiceInvite
+	a.pendingServiceInvite = ""
+	return value
+}
+
+func (a *AppService) queueServiceInvite(value string) {
+	a.pendingMu.Lock()
+	a.pendingServiceInvite = strings.TrimSpace(value)
+	a.pendingMu.Unlock()
 }
 
 func (a *AppService) StopSession(id string) error {

@@ -10,3 +10,4 @@ Keywords=whiskerlink;tailcat;file-transfer;peer-to-peer;
 Version=1.0
 GenericName=Private file and service sharing
 StartupNotify=false
+MimeType=x-scheme-handler/whiskerlink;

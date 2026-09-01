@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Dialogs, Events } from '@wailsio/runtime'
+import { Browser, Dialogs, Events } from '@wailsio/runtime'
 import * as API from '../bindings/github.com/DavidCarliez/whiskerlink/appservice.js'
 import './App.css'
 
 type View = 'home' | 'send' | 'receive' | 'share' | 'connect' | 'activity' | 'devices'
 
 type Session = {
-  id: string; kind: string; label: string; state: string; token?: string; localAddress?: string
-  remotePort?: number; transport?: string; latencyMs?: number; persistent: boolean; cliCompatible: boolean
-  createdAt: string; error?: string
+  id: string; kind: string; label: string; state: string; token?: string; invite?: string; localAddress?: string
+  remotePort?: number; serviceType?: ServiceType; transport?: string; latencyMs?: number; persistent: boolean
+  cliCompatible: boolean; createdAt: string; error?: string
 }
 type Transfer = {
   id: string; direction: 'send' | 'receive'; label: string; state: string; destination?: string
@@ -19,6 +19,8 @@ type Device = { id: string; name: string; tokenHint: string; createdAt: string }
 type FileEntry = { path: string; size: number; modTimeUnixNano: number; sha256: string }
 type Manifest = { protocolVersion: number; transferId: string; label: string; files: FileEntry[]; totalBytes: number; cliCompatible: boolean }
 type Snapshot = { sessions: Session[]; transfers: Transfer[]; trustedDevices: Device[] }
+type ServiceType = 'http' | 'https' | 'tcp'
+type ServiceInvite = { token: string; remotePort: number; label: string; serviceType: ServiceType }
 
 const emptySnapshot: Snapshot = { sessions: [], transfers: [], trustedDevices: [] }
 
@@ -62,6 +64,11 @@ function errorText(error: unknown): string {
   return 'The operation failed.'
 }
 
+function localServiceURL(address: string, serviceType?: ServiceType): string | null {
+  if (serviceType !== 'http' && serviceType !== 'https') return null
+  return `${serviceType}://${address}/`
+}
+
 function App() {
   const [view, setView] = useState<View>('home')
   const [snapshot, setSnapshot] = useState<Snapshot>(emptySnapshot)
@@ -83,20 +90,50 @@ function App() {
   const [shareLocalPort, setShareLocalPort] = useState(3000)
   const [shareRemotePort, setShareRemotePort] = useState(3000)
   const [sharePersistent, setSharePersistent] = useState(false)
+  const [shareServiceType, setShareServiceType] = useState<ServiceType>('http')
 
   const [connectLabel, setConnectLabel] = useState('Remote service')
   const [connectToken, setConnectToken] = useState('')
   const [connectDevice, setConnectDevice] = useState('')
   const [connectRemotePort, setConnectRemotePort] = useState(3000)
   const [connectLocalPort, setConnectLocalPort] = useState(0)
+  const [connectServiceType, setConnectServiceType] = useState<ServiceType>('http')
+  const [connectAutoOpen, setConnectAutoOpen] = useState(true)
 
   const [deviceName, setDeviceName] = useState('')
   const [deviceToken, setDeviceToken] = useState('')
 
   const refresh = async () => setSnapshot(normalizeSnapshot(await API.Snapshot()))
+
+  const applyServiceInvite = async (value: string) => {
+    try {
+      const invite = await API.ParseServiceInvite(value) as ServiceInvite
+      setConnectDevice('')
+      setConnectToken(invite.token)
+      setConnectRemotePort(invite.remotePort)
+      setConnectLabel(invite.label || 'Remote service')
+      setConnectServiceType(invite.serviceType)
+      setConnectLocalPort(0)
+      setView('connect')
+      setNotice({ kind: 'ok', text: 'Service invite loaded. A free local port will be selected.' })
+    } catch (error) {
+      setNotice({ kind: 'error', text: errorText(error) })
+    }
+  }
+
+  const takePendingServiceInvite = async () => {
+    const value = await API.TakePendingServiceInvite()
+    if (value) await applyServiceInvite(value)
+  }
   useEffect(() => {
     refresh().catch((error) => setNotice({ kind: 'error', text: errorText(error) }))
     return Events.On('snapshot', (event) => setSnapshot(normalizeSnapshot(event.data)))
+  }, [])
+
+  useEffect(() => {
+    const unsubscribe = Events.On('service-invite', () => { void takePendingServiceInvite() })
+    void takePendingServiceInvite()
+    return unsubscribe
   }, [])
 
   useEffect(() => {
@@ -176,6 +213,31 @@ function App() {
     }
   }
 
+  const connectService = async () => {
+    const session = await run(
+      () => connectDevice
+        ? API.ConnectTrustedService(connectDevice, connectLabel, connectRemotePort, connectLocalPort, connectServiceType)
+        : API.ConnectService({
+            label: connectLabel,
+            token: connectToken,
+            remotePort: connectRemotePort,
+            localPort: connectLocalPort,
+            serviceType: connectServiceType,
+          }),
+      'Local service link started.',
+    ) as Session | undefined
+    if (!session) return
+    setView('activity')
+    const url = session.localAddress ? localServiceURL(session.localAddress, session.serviceType) : null
+    if (connectAutoOpen && url) {
+      try {
+        await Browser.OpenURL(url)
+      } catch (error) {
+        setNotice({ kind: 'error', text: `Service connected, but the browser could not open: ${errorText(error)}` })
+      }
+    }
+  }
+
   const activeTransfers = snapshot.transfers.filter((item) => !['completed', 'failed'].includes(item.state))
   const latest = useMemo(() => snapshot.transfers.slice(0, 4), [snapshot.transfers])
 
@@ -206,11 +268,37 @@ function App() {
           {manifest && <div className="manifest"><div><strong>{manifest.label}</strong><small>{manifest.files.length} files · {formatBytes(manifest.totalBytes)}</small></div><div className="manifest-files">{manifest.files.map((file) => <label key={file.path}><input type="checkbox" checked={selectedFiles.includes(file.path)} onChange={() => setSelectedFiles((current) => current.includes(file.path) ? current.filter((p) => p !== file.path) : [...current, file.path])} /><span>{file.path}</span><small>{formatBytes(file.size)}</small></label>)}</div><label>Destination<div className="picker"><button onClick={chooseDestination}>Choose folder</button><span>{destination || 'No destination selected'}</span></div></label><label>Existing files<select value={collision} onChange={(e) => setCollision(e.target.value)}><option value="rename">Keep both</option><option value="overwrite">Replace after verification</option><option value="skip">Skip existing</option></select></label><button className="primary wide" disabled={busy || !destination || !selectedFiles.length} onClick={receiveFiles}>Accept selected files</button></div>}</div>
         </section>}
 
-        {view === 'share' && <section className="page narrow"><Intro number="03" title="Share one local service" text="Expose a local TCP service through Tailcat. Only the selected remote port is admitted; your operating system routes remain untouched." /><div className="panel form-panel"><label>Session label<input value={shareLabel} onChange={(e) => setShareLabel(e.target.value)} /></label><div className="field-grid"><label>Local port<input type="number" min="1" max="65535" value={shareLocalPort} onChange={(e) => setShareLocalPort(Number(e.target.value))} /></label><label>Remote port<input type="number" min="1" max="65535" value={shareRemotePort} onChange={(e) => setShareRemotePort(Number(e.target.value))} /></label></div><label className="switch-row"><input type="checkbox" checked={sharePersistent} onChange={(e) => setSharePersistent(e.target.checked)} /><span><strong>Persistent trusted identity</strong><small>Anyone previously given this address can reconnect unless access is rotated.</small></span></label><button className="primary wide" disabled={busy} onClick={() => run(() => API.ShareService({ label: shareLabel, localHost: '127.0.0.1', localPort: shareLocalPort, remotePort: shareRemotePort, persistent: sharePersistent }), 'Private service is listening.').then((result) => result && setView('activity'))}>Start sharing</button></div></section>}
+        {view === 'share' && <section className="page narrow">
+          <Intro number="03" title="Share one local service" text="Expose a local TCP service through Tailcat. Only the selected remote port is admitted; your operating system routes remain untouched." />
+          <div className="panel form-panel">
+            <label>Session label<input value={shareLabel} onChange={(e) => setShareLabel(e.target.value)} /></label>
+            <label>Service type<select value={shareServiceType} onChange={(e) => setShareServiceType(e.target.value as ServiceType)}><option value="http">HTTP website or API</option><option value="https">HTTPS website or API</option><option value="tcp">Other TCP service</option></select></label>
+            <div className="field-grid">
+              <label>Local port<input type="number" min="1" max="65535" value={shareLocalPort} onChange={(e) => setShareLocalPort(Number(e.target.value))} /></label>
+              <label>Remote port<input type="number" min="1" max="65535" value={shareRemotePort} onChange={(e) => setShareRemotePort(Number(e.target.value))} /></label>
+            </div>
+            <label className="switch-row"><input type="checkbox" checked={sharePersistent} onChange={(e) => setSharePersistent(e.target.checked)} /><span><strong>Persistent trusted identity</strong><small>Anyone previously given this address can reconnect unless access is rotated.</small></span></label>
+            <button className="primary wide" disabled={busy} onClick={() => run(() => API.ShareService({ label: shareLabel, localHost: '127.0.0.1', localPort: shareLocalPort, remotePort: shareRemotePort, persistent: sharePersistent, serviceType: shareServiceType }), 'Private service is listening.').then((result) => result && setView('activity'))}>Start sharing</button>
+          </div>
+        </section>}
 
-        {view === 'connect' && <section className="page narrow"><Intro number="04" title="Open a remote service locally" text="A loopback listener maps ordinary browser, database, and IDE traffic through one reusable Tailcat client." /><div className="panel form-panel"><label>Source<select value={connectDevice} onChange={(e) => setConnectDevice(e.target.value)}><option value="">Temporary invite token</option>{snapshot.trustedDevices.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select></label>{!connectDevice && <label>Tailcat token<textarea value={connectToken} onChange={(e) => setConnectToken(e.target.value)} placeholder="tc…" rows={3} /></label>}<label>Connection label<input value={connectLabel} onChange={(e) => setConnectLabel(e.target.value)} /></label><div className="field-grid"><label>Remote port<input type="number" min="1" max="65535" value={connectRemotePort} onChange={(e) => setConnectRemotePort(Number(e.target.value))} /></label><label>Local port <small>0 chooses a free port</small><input type="number" min="0" max="65535" value={connectLocalPort} onChange={(e) => setConnectLocalPort(Number(e.target.value))} /></label></div><button className="primary wide" disabled={busy || (!connectDevice && !connectToken.trim())} onClick={() => run(() => connectDevice ? API.ConnectTrustedService(connectDevice, connectLabel, connectRemotePort, connectLocalPort) : API.ConnectService({ label: connectLabel, token: connectToken, remotePort: connectRemotePort, localPort: connectLocalPort }), 'Local service link started.').then((result) => result && setView('activity'))}>Connect locally</button></div></section>}
+        {view === 'connect' && <section className="page narrow">
+          <Intro number="04" title="Open a remote service locally" text="Paste one WhiskerLink invite. A loopback listener maps browser, database, and IDE traffic through Tailcat." />
+          <div className="panel form-panel">
+            <label>Source<select value={connectDevice} onChange={(e) => setConnectDevice(e.target.value)}><option value="">WhiskerLink invite or Tailcat token</option>{snapshot.trustedDevices.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select></label>
+            {!connectDevice && <label>Service invite or Tailcat token<textarea value={connectToken} onChange={(e) => setConnectToken(e.target.value)} onPaste={(event) => { const value = event.clipboardData.getData('text').trim(); if (value.startsWith('whiskerlink://')) { event.preventDefault(); void applyServiceInvite(value) } }} placeholder="whiskerlink://connect?… or tc…" rows={3} /><small>WhiskerLink invites fill the remaining fields automatically.</small></label>}
+            <label>Connection label<input value={connectLabel} onChange={(e) => setConnectLabel(e.target.value)} /></label>
+            <label>Service type<select value={connectServiceType} onChange={(e) => setConnectServiceType(e.target.value as ServiceType)}><option value="http">HTTP website or API</option><option value="https">HTTPS website or API</option><option value="tcp">Other TCP service</option></select></label>
+            <div className="field-grid">
+              <label>Remote port<input type="number" min="1" max="65535" value={connectRemotePort} onChange={(e) => setConnectRemotePort(Number(e.target.value))} /></label>
+              <label>Local port <small>0 chooses a free port</small><input type="number" min="0" max="65535" value={connectLocalPort} onChange={(e) => setConnectLocalPort(Number(e.target.value))} /></label>
+            </div>
+            {(connectServiceType === 'http' || connectServiceType === 'https') && <label className="switch-row"><input type="checkbox" checked={connectAutoOpen} onChange={(e) => setConnectAutoOpen(e.target.checked)} /><span><strong>Open in browser after connecting</strong><small>Uses the selected free localhost port.</small></span></label>}
+            <button className="primary wide" disabled={busy || (!connectDevice && !connectToken.trim())} onClick={connectService}>Connect locally</button>
+          </div>
+        </section>}
 
-        {view === 'activity' && <section className="page"><SectionTitle title="Live sessions" /><div className="session-grid">{snapshot.sessions.length ? snapshot.sessions.map((session) => <SessionCard key={session.id} session={session} onCopied={(text) => setNotice({ kind: 'ok', text })} onStop={(id) => run(() => API.StopSession(id), 'Session stopped.')} />) : <Empty text="No live sessions. Start a file offer or share a service." />}</div><SectionTitle title="Transfer history" /><TransferList transfers={snapshot.transfers} onPause={(id) => run(() => API.PauseTransfer(id), 'Transfer paused.')} onResume={(id) => run(() => API.ResumeTransfer(id), 'Transfer queued to resume.')} /></section>}
+        {view === 'activity' && <section className="page"><SectionTitle title="Live sessions" /><div className="session-grid">{snapshot.sessions.length ? snapshot.sessions.map((session) => <SessionCard key={session.id} session={session} onCopied={(text) => setNotice({ kind: 'ok', text })} onError={(text) => setNotice({ kind: 'error', text })} onStop={(id) => run(() => API.StopSession(id), 'Session stopped.')} />) : <Empty text="No live sessions. Start a file offer or share a service." />}</div><SectionTitle title="Transfer history" /><TransferList transfers={snapshot.transfers} onPause={(id) => run(() => API.PauseTransfer(id), 'Transfer paused.')} onResume={(id) => run(() => API.ResumeTransfer(id), 'Transfer queued to resume.')} /></section>}
 
         {view === 'devices' && <section className="page narrow"><Intro number="05" title="Name a persistent endpoint" text="The complete capability token is stored in the operating system credential manager. The database keeps only a redacted hint." /><div className="panel form-panel"><label>Device name<input value={deviceName} onChange={(e) => setDeviceName(e.target.value)} placeholder="Home workstation" /></label><label>Persistent Tailcat token<textarea value={deviceToken} onChange={(e) => setDeviceToken(e.target.value)} rows={3} placeholder="tc…" /></label><button className="primary wide" disabled={busy || !deviceName || !deviceToken} onClick={() => run(() => API.AddTrustedDevice(deviceName, deviceToken), 'Trusted device saved.').then((result) => { if (result) { setDeviceName(''); setDeviceToken('') } })}>Save trusted device</button></div><div className="device-list">{snapshot.trustedDevices.map((device) => <article key={device.id}><span className="device-mark">{device.name.slice(0, 2).toUpperCase()}</span><div><strong>{device.name}</strong><code>{device.tokenHint}</code></div><button className="quiet" onClick={() => run(() => API.RemoveTrustedDevice(device.id), 'Trusted device removed.')}>Remove</button></article>)}</div></section>}
       </main>
@@ -232,12 +320,20 @@ function receiverCommand(platform: ReceiverPlatform, token: string): string {
   return `tailcat cp -r '${token}:.' .`
 }
 
-function SessionCard({ session, onCopied, onStop }: { session: Session; onCopied: (text: string) => void; onStop: (id: string) => void }) {
+function SessionCard({ session, onCopied, onError, onStop }: { session: Session; onCopied: (text: string) => void; onError: (text: string) => void; onStop: (id: string) => void }) {
+  const shareValue = session.kind === 'service-share' ? session.invite : session.token
+  const serviceURL = session.kind === 'service-link' && session.localAddress
+    ? localServiceURL(session.localAddress, session.serviceType)
+    : null
   return <article className="session">
     <div className="session-head"><span className={`state ${session.state}`}>{session.state}</span><small>{session.kind.replace('-', ' ')}</small></div>
     <h3>{session.label}</h3>
     {session.localAddress && <code>{session.localAddress}</code>}
-    {session.token && <div className="token"><span>{session.token.slice(0, 22)}…</span><button onClick={() => navigator.clipboard.writeText(session.token || '').then(() => onCopied('Invite copied to clipboard.'))}>Copy invite</button></div>}
+    {shareValue && <div className="token"><span>{shareValue.slice(0, 22)}…</span><button onClick={() => navigator.clipboard.writeText(shareValue).then(() => onCopied('Invite copied to clipboard.'))}>Copy invite</button></div>}
+    {serviceURL && <div className="receiver-guide">
+      <div className="receiver-head"><div><strong>Local service ready</strong><small>{serviceURL}</small></div></div>
+      <div className="receiver-command service-url"><code>{serviceURL}</code><button onClick={() => Browser.OpenURL(serviceURL).catch((error) => onError(errorText(error)))}>Open</button><button onClick={() => navigator.clipboard.writeText(serviceURL).then(() => onCopied('Local URL copied.'))}>Copy URL</button></div>
+    </div>}
     {session.kind === 'service-share' && session.token && session.remotePort && <ServiceClientGuide token={session.token} port={session.remotePort} onCopied={onCopied} />}
     {session.kind === 'file-offer' && session.token && <ReceiverGuide token={session.token} compatible={session.cliCompatible} onCopied={onCopied} />}
     <dl><div><dt>Transport</dt><dd>{session.transport || 'waiting'}</dd></div><div><dt>Remote port</dt><dd>{session.remotePort || '—'}</dd></div></dl>

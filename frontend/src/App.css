@@ -101,7 +101,7 @@ input:focus, textarea:focus, select:focus { border-color: var(--green); box-shad
 .receiver-command button { padding: 7px 9px; font-size: 9px; }
 .receiver-status-note { display: block; margin-top: 9px !important; padding-top: 9px; border-top: 1px solid #d9dfd8; line-height: 1.5; }
 .receiver-guide > small code { display: inline; margin: 0; color: var(--green); font-size: inherit; }
-.receiver-command.service-url { margin-top: 8px; }
+.receiver-command.service-url { grid-template-columns: minmax(0,1fr) auto auto; margin-top: 8px; }
 dl { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:15px 0; } dl div { border-top:1px solid #e4e7e1; padding-top:8px; } dt { color:var(--muted); font-size:9px; text-transform:uppercase; } dd { margin:4px 0 0; font-size:11px; }
 .inline-error { color:#a2443e; font-size:10px; line-height:1.5; margin:8px 0; }
 .device-list { display:flex; flex-direction:column; gap:8px; margin-top:18px; }.device-list article { display:grid; grid-template-columns:42px 1fr auto; gap:12px; align-items:center; padding:13px; background:var(--paper); border:1px solid var(--line); border-radius:9px; }.device-mark { display:grid; place-items:center; width:38px; height:38px; border-radius:8px; background:#1c3029; color:var(--lime); font:10px DM Mono,monospace; }.device-list strong,.device-list code { display:block; }.device-list strong { font-size:12px; }.device-list code { margin-top:4px; color:var(--muted); font:9px DM Mono,monospace; }

@@ -10,4 +10,4 @@ Icon=whiskerlink
 Categories=Utility;
 StartupWMClass=whiskerlink
 
- 
+MimeType=x-scheme-handler/whiskerlink; 

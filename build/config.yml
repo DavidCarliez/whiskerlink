@@ -16,6 +16,10 @@ info:
   #                               # Should match the name of your .icon file without the extension
   #                               # If not set and Assets.car exists, defaults to "appicon"
 
+protocols:
+  - scheme: whiskerlink
+    description: WhiskerLink service invite
+
 
 # Dev mode configuration
 dev_mode:

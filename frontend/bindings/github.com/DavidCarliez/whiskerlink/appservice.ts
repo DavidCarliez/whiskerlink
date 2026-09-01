@@ -23,8 +23,8 @@ export function ConnectService(req: tailnet$0.ConnectServiceRequest): $Cancellab
     return $Call.ByID(1010473179, req);
 }
 
-export function ConnectTrustedService(deviceID: string, label: string, remotePort: number, localPort: number): $CancellablePromise<domain$0.Session> {
-    return $Call.ByID(265948694, deviceID, label, remotePort, localPort);
+export function ConnectTrustedService(deviceID: string, label: string, remotePort: number, localPort: number, serviceType: string): $CancellablePromise<domain$0.Session> {
+    return $Call.ByID(265948694, deviceID, label, remotePort, localPort, serviceType);
 }
 
 export function InspectFileOffer(token: string): $CancellablePromise<domain$0.FileManifest> {
@@ -33,6 +33,10 @@ export function InspectFileOffer(token: string): $CancellablePromise<domain$0.Fi
 
 export function InspectTrustedFileOffer(deviceID: string): $CancellablePromise<domain$0.FileManifest> {
     return $Call.ByID(3232435551, deviceID);
+}
+
+export function ParseServiceInvite(value: string): $CancellablePromise<domain$0.ServiceInvite> {
+    return $Call.ByID(561645253, value);
 }
 
 export function PauseTransfer(id: string): $CancellablePromise<void> {
@@ -69,4 +73,8 @@ export function StartFileOffer(req: transfer$0.StartOfferRequest): $CancellableP
 
 export function StopSession(id: string): $CancellablePromise<void> {
     return $Call.ByID(3505525398, id);
+}
+
+export function TakePendingServiceInvite(): $CancellablePromise<string> {
+    return $Call.ByID(99441782);
 }

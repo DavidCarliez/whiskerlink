@@ -10,6 +10,13 @@ const (
 	SessionFileOffer    SessionKind = "file-offer"
 )
 
+type ServiceInvite struct {
+	Token       string `json:"token"`
+	RemotePort  uint16 `json:"remotePort"`
+	Label       string `json:"label"`
+	ServiceType string `json:"serviceType"`
+}
+
 type Session struct {
 	ID            string      `json:"id"`
 	Kind          SessionKind `json:"kind"`
@@ -19,6 +26,8 @@ type Session struct {
 	LocalAddress  string      `json:"localAddress,omitempty"`
 	RemotePort    uint16      `json:"remotePort,omitempty"`
 	Transport     string      `json:"transport,omitempty"`
+	Invite        string      `json:"invite,omitempty"`
+	ServiceType   string      `json:"serviceType,omitempty"`
 	LatencyMS     int64       `json:"latencyMs,omitempty"`
 	Persistent    bool        `json:"persistent"`
 	CLICompatible bool        `json:"cliCompatible"`

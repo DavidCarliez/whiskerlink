@@ -17,6 +17,13 @@ export interface FileManifest {
     "cliCompatible": boolean;
 }
 
+export interface ServiceInvite {
+    "token": string;
+    "remotePort": number;
+    "label": string;
+    "serviceType": string;
+}
+
 export interface Session {
     "id": string;
     "kind": SessionKind;
@@ -26,6 +33,8 @@ export interface Session {
     "localAddress"?: string;
     "remotePort"?: number;
     "transport"?: string;
+    "invite"?: string;
+    "serviceType"?: string;
     "latencyMs"?: number;
     "persistent": boolean;
     "cliCompatible": boolean;

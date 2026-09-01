@@ -17,18 +17,20 @@ import (
 )
 
 type ShareServiceRequest struct {
-	Label      string `json:"label"`
-	LocalHost  string `json:"localHost"`
-	LocalPort  uint16 `json:"localPort"`
-	RemotePort uint16 `json:"remotePort"`
-	Persistent bool   `json:"persistent"`
+	Label       string `json:"label"`
+	LocalHost   string `json:"localHost"`
+	LocalPort   uint16 `json:"localPort"`
+	RemotePort  uint16 `json:"remotePort"`
+	Persistent  bool   `json:"persistent"`
+	ServiceType string `json:"serviceType"`
 }
 
 type ConnectServiceRequest struct {
-	Label      string `json:"label"`
-	Token      string `json:"token"`
-	RemotePort uint16 `json:"remotePort"`
-	LocalPort  uint16 `json:"localPort"`
+	Label       string `json:"label"`
+	Token       string `json:"token"`
+	RemotePort  uint16 `json:"remotePort"`
+	LocalPort   uint16 `json:"localPort"`
+	ServiceType string `json:"serviceType"`
 }
 
 type runtimeSession struct {
@@ -77,6 +79,10 @@ func (m *Manager) ShareService(ctx context.Context, req ShareServiceRequest) (do
 		return domain.Session{}, err
 	}
 	if err := validatePort(req.RemotePort, "remote port"); err != nil {
+		return domain.Session{}, err
+	}
+	serviceType, err := normalizeServiceType(req.ServiceType)
+	if err != nil {
 		return domain.Session{}, err
 	}
 	if req.LocalHost == "" {
@@ -128,12 +134,19 @@ func (m *Manager) ShareService(ctx context.Context, req ShareServiceRequest) (do
 			return domain.Session{}, err
 		}
 	}
+	invite, err := EncodeServiceInvite(domain.ServiceInvite{
+		Token: token, RemotePort: req.RemotePort, Label: req.Label, ServiceType: serviceType,
+	})
+	if err != nil {
+		_ = server.Close()
+		return domain.Session{}, err
+	}
 
 	s := domain.Session{
 		ID: sessionID, Kind: domain.SessionServiceShare, Label: req.Label,
-		State: "listening", Token: token, RemotePort: req.RemotePort,
-		LocalAddress: localTarget, Transport: "waiting", Persistent: req.Persistent,
-		CreatedAt: time.Now(),
+		State: "listening", Token: token, Invite: invite, RemotePort: req.RemotePort,
+		LocalAddress: localTarget, ServiceType: serviceType, Transport: "waiting",
+		Persistent: req.Persistent, CreatedAt: time.Now(),
 	}
 	m.mu.Lock()
 	m.sessions[s.ID] = &runtimeSession{value: s, stop: server.Close}
@@ -147,6 +160,10 @@ func (m *Manager) ConnectService(ctx context.Context, req ConnectServiceRequest)
 		return domain.Session{}, fmt.Errorf("invalid Tailcat token: %w", err)
 	}
 	if err := validatePort(req.RemotePort, "remote port"); err != nil {
+		return domain.Session{}, err
+	}
+	serviceType, err := normalizeServiceType(req.ServiceType)
+	if err != nil {
 		return domain.Session{}, err
 	}
 	if req.Label == "" {
@@ -169,7 +186,7 @@ func (m *Manager) ConnectService(ctx context.Context, req ConnectServiceRequest)
 	s := domain.Session{
 		ID: uuid.NewString(), Kind: domain.SessionServiceLink, Label: req.Label,
 		State: "connecting", LocalAddress: net.JoinHostPort("127.0.0.1", strconv.Itoa(int(port))),
-		RemotePort: req.RemotePort, Transport: "connecting", CreatedAt: time.Now(),
+		RemotePort: req.RemotePort, ServiceType: serviceType, Transport: "connecting", CreatedAt: time.Now(),
 	}
 	runtime := &runtimeSession{value: s, stop: stop, client: client}
 	m.mu.Lock()

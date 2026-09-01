@@ -6,6 +6,7 @@ export interface ConnectServiceRequest {
     "token": string;
     "remotePort": number;
     "localPort": number;
+    "serviceType": string;
 }
 
 export interface ShareServiceRequest {
@@ -14,4 +15,5 @@ export interface ShareServiceRequest {
     "localPort": number;
     "remotePort": number;
     "persistent": boolean;
+    "serviceType": string;
 }

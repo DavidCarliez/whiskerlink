@@ -9,6 +9,7 @@ export {
 export type {
     FileEntry,
     FileManifest,
+    ServiceInvite,
     Session,
     Snapshot,
     Transfer,

@@ -19,7 +19,7 @@ WhiskerLink creates an end-to-end encrypted WireGuard path between two peers. It
 - Verify completed files with SHA-256 before moving them into place.
 - Queue, pause, resume, and review transfer activity.
 - Share a local TCP service through a temporary or persistent Tailcat identity.
-- Map a remote Tailcat service to an ordinary local loopback port.
+- Share a complete `whiskerlink://` service invite that opens on a free loopback port.
 - Store persistent tokens and private keys in the operating-system credential manager.
 - Receive a one-file or one-folder offer with the stock Tailcat CLI—no GUI required.
 - Stay available from the system tray without leaving a visible window open.
@@ -73,11 +73,13 @@ Multiple independent selections use WhiskerLink's richer transfer protocol and r
 
 ## Share a service
 
-1. Open **Share service**.
-2. Enter the loopback TCP port to expose and the remote Tailcat port.
-3. Start sharing and send the generated invite to the recipient.
-4. The recipient opens **Connect service**, supplies the invite and remote port, and chooses a local port.
-5. Existing software connects to the displayed `127.0.0.1` address as if the service were local.
+1. Open **Share service**, choose HTTP, HTTPS, or TCP, and enter the local and remote ports.
+2. Start sharing and send the generated `whiskerlink://` invite to the recipient.
+3. The recipient opens the invite with WhiskerLink or pastes it into **Connect service**.
+4. WhiskerLink fills the token, service type, label, and remote port, then selects a free local port.
+5. HTTP and HTTPS services can open in the default browser automatically. Other clients connect to the displayed `127.0.0.1` address.
+
+Installed packages register the `whiskerlink` URL scheme. When running an unpacked binary, copy and paste the invite into **Connect service** instead.
 
 ### Service client without WhiskerLink
 
@@ -103,7 +105,7 @@ Only the configured TCP port is exposed. WhiskerLink does not advertise the host
 
 ## Security model
 
-- A `tc…` invite is a capability. Anyone holding it can connect while the corresponding offer or service is running. Treat it as a secret.
+- A `tc…` token—and every `whiskerlink://` invite containing one—is a capability. Anyone holding it can connect while the corresponding offer or service is running. Treat it as a secret.
 - Temporary sessions generate an in-memory identity that disappears when the session stops.
 - Persistent identities remain reachable by previously shared tokens until rotated.
 - Persistent private keys and full trusted-device tokens are stored in the OS credential manager.

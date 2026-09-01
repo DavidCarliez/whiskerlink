@@ -7,9 +7,11 @@ import (
 	"log"
 	"os"
 	"runtime"
+	"strings"
 
 	"github.com/DavidCarliez/whiskerlink/internal/domain"
 	"github.com/DavidCarliez/whiskerlink/internal/storage"
+	"github.com/DavidCarliez/whiskerlink/internal/tailnet"
 )
 
 //go:embed all:frontend/dist
@@ -39,6 +41,23 @@ func main() {
 		log.Fatal(err)
 	}
 
+	var window *application.WebviewWindow
+	presentServiceInvite := func(value string) {
+		invite := serviceInviteFromArgs([]string{value})
+		if invite == "" {
+			return
+		}
+		service.queueServiceInvite(invite)
+		if window != nil {
+			window.EmitEvent("service-invite", nil)
+			window.Restore()
+			window.Focus()
+		}
+	}
+	if invite := serviceInviteFromArgs(os.Args); invite != "" {
+		service.queueServiceInvite(invite)
+	}
+
 	app := application.New(application.Options{
 		Name:        "WhiskerLink",
 		Description: "Private paths for files and services, powered by Tailcat",
@@ -53,12 +72,23 @@ func main() {
 		},
 		Windows: application.WindowsOptions{DisableQuitOnLastWindowClosed: true},
 		Linux:   application.LinuxOptions{DisableQuitOnLastWindowClosed: true},
+		SingleInstance: &application.SingleInstanceOptions{
+			UniqueID: "io.github.davidcarliez.whiskerlink",
+			OnSecondInstanceLaunch: func(data application.SecondInstanceData) {
+				if invite := serviceInviteFromArgs(data.Args); invite != "" {
+					presentServiceInvite(invite)
+				}
+			},
+		},
+	})
+	app.Event.OnApplicationEvent(events.Common.ApplicationLaunchedWithUrl, func(event *application.ApplicationEvent) {
+		presentServiceInvite(event.Context().URL())
 	})
 	service.setEmitter(func(snapshot domain.Snapshot) {
 		app.Event.Emit("snapshot", snapshot)
 	})
 
-	window := app.Window.NewWithOptions(application.WebviewWindowOptions{
+	window = app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Name:             "main",
 		Title:            "WhiskerLink",
 		Width:            1180,
@@ -101,4 +131,13 @@ func main() {
 		log.Fatal(err)
 	}
 	service.shutdown()
+}
+
+func serviceInviteFromArgs(args []string) string {
+	for _, arg := range args {
+		if strings.HasPrefix(arg, tailnet.ServiceInviteScheme+"://connect?") {
+			return arg
+		}
+	}
+	return ""
 }

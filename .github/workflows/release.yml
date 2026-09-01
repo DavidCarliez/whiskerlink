@@ -24,7 +24,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes libgtk-3-dev libwebkit2gtk-4.1-dev
-          go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.16
+          go install -tags gtk3 github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.16
       - name: Install frontend dependencies
         working-directory: frontend
         run: bun install --frozen-lockfile

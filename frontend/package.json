@@ -7,14 +7,18 @@
     "dev": "bun node_modules/vite/bin/vite.js",
     "build:dev": "bun node_modules/typescript/bin/tsc && bun node_modules/vite/bin/vite.js build --minify false --mode development",
     "build": "bun node_modules/typescript/bin/tsc && bun node_modules/vite/bin/vite.js build --mode production",
-    "preview": "bun node_modules/vite/bin/vite.js preview"
+    "preview": "bun node_modules/vite/bin/vite.js preview",
+    "test": "bun test"
   },
   "dependencies": {
     "@wailsio/runtime": "latest",
+    "qrcode": "^1.5.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
   "devDependencies": {
+    "@types/bun": "^1.4.0",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^18.2.43",
     "@types/react-dom": "^18.2.17",
     "@vitejs/plugin-react": "^6.0.0",

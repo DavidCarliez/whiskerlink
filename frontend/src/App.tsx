@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Browser, Dialogs, Events } from '@wailsio/runtime'
 import * as API from '../bindings/github.com/DavidCarliez/whiskerlink/appservice.js'
+import { createInviteQRCode, inviteKind, redactInvite } from './invites'
 import './App.css'
 
 type View = 'home' | 'send' | 'receive' | 'share' | 'connect' | 'activity' | 'devices'
@@ -142,11 +143,41 @@ function App() {
   }
 
   const applyInvite = async (value: string) => {
-    if (value.startsWith('whiskerlink://receive?')) {
+    const kind = inviteKind(value)
+    if (kind === 'receive') {
       await applyFileInvite(value)
       return
     }
-    await applyServiceInvite(value)
+    if (kind === 'connect') {
+      await applyServiceInvite(value)
+      return
+    }
+    setNotice({ kind: 'error', text: 'Clipboard does not contain a supported WhiskerLink invite.' })
+  }
+
+  const pasteFromClipboard = async (target: 'receive' | 'connect') => {
+    try {
+      const value = (await navigator.clipboard.readText()).trim()
+      if (!value) {
+        setNotice({ kind: 'error', text: 'Clipboard is empty.' })
+        return
+      }
+      if (inviteKind(value)) {
+        await applyInvite(value)
+        return
+      }
+      if (target === 'receive') {
+        setReceiveDevice('')
+        setReceiveToken(value)
+        setManifest(null)
+      } else {
+        setConnectDevice('')
+        setConnectToken(value)
+      }
+      setNotice({ kind: 'ok', text: 'Tailcat token pasted.' })
+    } catch (error) {
+      setNotice({ kind: 'error', text: `Clipboard could not be read: ${errorText(error)}` })
+    }
   }
 
   const takePendingInvite = async () => {
@@ -294,7 +325,7 @@ function App() {
         {view === 'receive' && <section className="page narrow"><Intro number="02" title="Inspect before receiving" text="Connection metadata is validated before the manifest is shown. Nothing is written until you accept the offer." />
           <div className="panel form-panel">
             <label>Source<select value={receiveDevice} onChange={(e) => { setReceiveDevice(e.target.value); setManifest(null) }}><option value="">WhiskerLink invite or Tailcat token</option>{snapshot.trustedDevices.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select></label>
-            {!receiveDevice && <label>File invite or Tailcat token<textarea value={receiveToken} onChange={(e) => { setReceiveToken(e.target.value); setManifest(null) }} onPaste={(event) => { const value = event.clipboardData.getData('text').trim(); if (value.startsWith('whiskerlink://')) { event.preventDefault(); void applyInvite(value) } }} placeholder="whiskerlink://receive?… or tc…" rows={3} /><small>WhiskerLink invites inspect the manifest automatically.</small></label>}
+            {!receiveDevice && <label>File invite or Tailcat token<div className="invite-input"><textarea value={receiveToken} onChange={(e) => { setReceiveToken(e.target.value); setManifest(null) }} onPaste={(event) => { const value = event.clipboardData.getData('text').trim(); if (value.startsWith('whiskerlink://')) { event.preventDefault(); void applyInvite(value) } }} placeholder="whiskerlink://receive?… or tc…" rows={3} /><button type="button" onClick={() => void pasteFromClipboard('receive')}>Paste</button></div><small>WhiskerLink invites inspect the manifest automatically.</small></label>}
             <button disabled={busy || (!receiveDevice && !receiveToken.trim())} onClick={inspectOffer}>Inspect offer</button>
           {manifest && <div className="manifest"><div><strong>{manifest.label}</strong><small>{manifest.files.length} files · {formatBytes(manifest.totalBytes)}</small></div><div className="manifest-files">{manifest.files.map((file) => <label key={file.path}><input type="checkbox" checked={selectedFiles.includes(file.path)} onChange={() => setSelectedFiles((current) => current.includes(file.path) ? current.filter((p) => p !== file.path) : [...current, file.path])} /><span>{file.path}</span><small>{formatBytes(file.size)}</small></label>)}</div><label>Destination<div className="picker"><button onClick={chooseDestination}>Choose folder</button><span>{destination || 'No destination selected'}</span></div></label><label>Existing files<select value={collision} onChange={(e) => setCollision(e.target.value)}><option value="rename">Keep both</option><option value="overwrite">Replace after verification</option><option value="skip">Skip existing</option></select></label><button className="primary wide" disabled={busy || !destination || !selectedFiles.length} onClick={receiveFiles}>Accept selected files</button></div>}</div>
         </section>}
@@ -317,7 +348,7 @@ function App() {
           <Intro number="04" title="Open a remote service locally" text="Paste one WhiskerLink invite. A loopback listener maps browser, database, and IDE traffic through Tailcat." />
           <div className="panel form-panel">
             <label>Source<select value={connectDevice} onChange={(e) => setConnectDevice(e.target.value)}><option value="">WhiskerLink invite or Tailcat token</option>{snapshot.trustedDevices.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select></label>
-            {!connectDevice && <label>Service invite or Tailcat token<textarea value={connectToken} onChange={(e) => setConnectToken(e.target.value)} onPaste={(event) => { const value = event.clipboardData.getData('text').trim(); if (value.startsWith('whiskerlink://')) { event.preventDefault(); void applyInvite(value) } }} placeholder="whiskerlink://connect?… or tc…" rows={3} /><small>WhiskerLink invites fill the remaining fields automatically.</small></label>}
+            {!connectDevice && <label>Service invite or Tailcat token<div className="invite-input"><textarea value={connectToken} onChange={(e) => setConnectToken(e.target.value)} onPaste={(event) => { const value = event.clipboardData.getData('text').trim(); if (value.startsWith('whiskerlink://')) { event.preventDefault(); void applyInvite(value) } }} placeholder="whiskerlink://connect?… or tc…" rows={3} /><button type="button" onClick={() => void pasteFromClipboard('connect')}>Paste</button></div><small>WhiskerLink invites fill the remaining fields automatically.</small></label>}
             <label>Connection label<input value={connectLabel} onChange={(e) => setConnectLabel(e.target.value)} /></label>
             <label>Service type<select value={connectServiceType} onChange={(e) => setConnectServiceType(e.target.value as ServiceType)}><option value="http">HTTP website or API</option><option value="https">HTTPS website or API</option><option value="tcp">Other TCP service</option></select></label>
             <div className="field-grid">
@@ -352,7 +383,6 @@ function receiverCommand(platform: ReceiverPlatform, token: string): string {
 }
 
 function SessionCard({ session, onCopied, onError, onStop }: { session: Session; onCopied: (text: string) => void; onError: (text: string) => void; onStop: (id: string) => void }) {
-  const shareValue = session.invite || session.token
   const serviceURL = session.kind === 'service-link' && session.localAddress
     ? localServiceURL(session.localAddress, session.serviceType)
     : null
@@ -360,17 +390,72 @@ function SessionCard({ session, onCopied, onError, onStop }: { session: Session;
     <div className="session-head"><span className={`state ${session.state}`}>{session.state}</span><small>{session.kind.replace('-', ' ')}</small></div>
     <h3>{session.label}</h3>
     {session.localAddress && <code>{session.localAddress}</code>}
-    {shareValue && <div className="token"><span>{shareValue.slice(0, 22)}…</span><button onClick={() => navigator.clipboard.writeText(shareValue).then(() => onCopied('Invite copied to clipboard.'))}>Copy invite</button></div>}
+    {session.invite
+      ? <InviteSharePanel session={session} onCopied={onCopied} onError={onError} />
+      : session.token && <details className="token-access"><summary>Advanced token access</summary><button onClick={() => navigator.clipboard.writeText(session.token || '').then(() => onCopied('Token copied to clipboard.')).catch((error) => onError(errorText(error)))}>Copy raw Tailcat token</button></details>}
     {serviceURL && <div className="receiver-guide">
       <div className="receiver-head"><div><strong>Local service ready</strong><small>{serviceURL}</small></div></div>
       <div className="receiver-command service-url"><code>{serviceURL}</code><button onClick={() => Browser.OpenURL(serviceURL).catch((error) => onError(errorText(error)))}>Open</button><button onClick={() => navigator.clipboard.writeText(serviceURL).then(() => onCopied('Local URL copied.'))}>Copy URL</button></div>
     </div>}
-    {session.kind === 'service-share' && session.token && session.remotePort && <ServiceClientGuide token={session.token} port={session.remotePort} onCopied={onCopied} />}
-    {session.kind === 'file-offer' && session.token && <ReceiverGuide token={session.token} compatible={session.cliCompatible} onCopied={onCopied} />}
     <dl><div><dt>Transport</dt><dd>{session.transport || 'waiting'}</dd></div><div><dt>Remote port</dt><dd>{session.remotePort || '—'}</dd></div></dl>
     {session.error && <p className="inline-error">{session.error}</p>}
     <button className="danger" onClick={() => onStop(session.id)}>Stop session</button>
   </article>
+}
+
+function InviteSharePanel({ session, onCopied, onError }: { session: Session; onCopied: (text: string) => void; onError: (text: string) => void }) {
+  const [open, setOpen] = useState(false)
+  const [qrCode, setQRCode] = useState<string | null | undefined>()
+  const invite = session.invite || ''
+
+  useEffect(() => {
+    let active = true
+    if (!open || !invite) {
+      setQRCode(undefined)
+      return () => { active = false }
+    }
+    setQRCode(undefined)
+    void createInviteQRCode(invite).then((value) => {
+      if (active) setQRCode(value)
+    })
+    return () => { active = false }
+  }, [open, invite])
+
+  const description = session.kind === 'file-offer'
+    ? 'File offer'
+    : `${(session.serviceType || 'tcp').toUpperCase()} service on remote port ${session.remotePort || '—'}`
+  const copyToClipboard = (value: string, notice: string) => {
+    void navigator.clipboard.writeText(value)
+      .then(() => onCopied(notice))
+      .catch((error) => onError(errorText(error)))
+  }
+
+  return <div className={`invite-share ${open ? 'open' : ''}`}>
+    <button className="wide invite-share-toggle" aria-expanded={open} onClick={() => setOpen((value) => !value)}>{open ? 'Hide invite' : 'Share invite'}</button>
+    {open && <div className="invite-share-body">
+      <div className="invite-qr">
+        {qrCode === undefined && <span className="qr-placeholder">Generating QR…</span>}
+        {qrCode === null && <span className="qr-placeholder">Invite is too large for a reliable QR code. Use Copy invite.</span>}
+        {qrCode && <img src={qrCode} alt="WhiskerLink invite QR code" />}
+      </div>
+      <div className="invite-share-details">
+        <p className="eyebrow">WHISKERLINK INVITE</p>
+        <strong>{description}</strong>
+        <small>Status: {session.state} · Active until stopped</small>
+        <code>{redactInvite(invite)}</code>
+        <div className="invite-share-actions">
+          <button className="primary" onClick={() => copyToClipboard(invite, 'Invite copied to clipboard.')}>Copy invite</button>
+        </div>
+        <p className="invite-warning">This QR code and invite contain a capability secret. Share them only with the intended recipient.</p>
+        {session.token && <details>
+          <summary>Advanced</summary>
+          <button onClick={() => copyToClipboard(session.token || '', 'Raw Tailcat token copied.')}>Copy raw Tailcat token</button>
+          {session.kind === 'service-share' && session.remotePort && <ServiceClientGuide token={session.token} port={session.remotePort} onCopied={onCopied} />}
+          {session.kind === 'file-offer' && <ReceiverGuide token={session.token} compatible={session.cliCompatible} onCopied={onCopied} />}
+        </details>}
+      </div>
+    </div>}
+  </div>
 }
 
 function ReceiverGuide({ token, compatible, onCopied }: { token: string; compatible: boolean; onCopied: (text: string) => void }) {

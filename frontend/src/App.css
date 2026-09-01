@@ -61,6 +61,9 @@ input:focus, textarea:focus, select:focus { border-color: var(--green); box-shad
 .field-grid label { display: flex; flex-direction: column; gap: 8px; font-size: 12px; font-weight: 650; }
 .picker { display: flex; align-items: center; gap: 12px; border: 1px dashed #bfc8c1; background: #f7f8f3; padding: 12px; border-radius: 8px; }
 .picker span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 11px; font-weight: 400; }
+.invite-input { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px; align-items: stretch; }
+.invite-input textarea { min-width: 0; }
+.invite-input button { min-width: 72px; }
 .path-list { display: flex; flex-direction: column; max-height: 145px; overflow: auto; background: #151e1b; color: #bdc9c2; padding: 10px 13px; border-radius: 7px; font: 10px/1.8 DM Mono, monospace; }
 .switch-row { flex-direction: row !important; align-items: flex-start; background: #f3f5ef; padding: 14px; border-radius: 8px; }
 .switch-row input { width: auto; margin: 3px 3px 0 0; }
@@ -88,7 +91,9 @@ input:focus, textarea:focus, select:focus { border-color: var(--green); box-shad
 .session { padding: 20px; border: 1px solid var(--line); background: var(--paper); border-radius: 10px; }
 .session-head { display:flex; justify-content:space-between; align-items:center; }.session-head small { color:var(--muted); font-size:10px; text-transform:uppercase; }
 .session h3 { font-size:17px; margin:18px 0 10px; }.session code { display:block; color:var(--green); font:11px DM Mono,monospace; margin-bottom:13px; }
-.token { display:flex; justify-content:space-between; align-items:center; background:#16201d; color:#b7c4bd; border-radius:6px; padding:8px 9px; font:9px DM Mono,monospace; }.token button { padding:5px 8px; font-size:9px; }
+.token-access { margin-top: 12px; padding: 10px 12px; border: 1px solid #d9dfd8; border-radius: 7px; background: #f4f6f1; }
+.token-access summary { color: var(--muted); cursor: pointer; font-size: 9px; }
+.token-access button { margin-top: 8px; padding: 6px 9px; font-size: 9px; }
 .receiver-guide { margin-top: 12px; padding: 12px; border: 1px solid #d9dfd8; border-radius: 8px; background: #f4f6f1; }
 .receiver-guide.unavailable { border-color: #ead9c7; background: #fff8ee; }
 .receiver-guide.unavailable p { margin: 7px 0 0; color: #705f4d; font-size: 10px; line-height: 1.5; }
@@ -102,6 +107,23 @@ input:focus, textarea:focus, select:focus { border-color: var(--green); box-shad
 .receiver-status-note { display: block; margin-top: 9px !important; padding-top: 9px; border-top: 1px solid #d9dfd8; line-height: 1.5; }
 .receiver-guide > small code { display: inline; margin: 0; color: var(--green); font-size: inherit; }
 .receiver-command.service-url { grid-template-columns: minmax(0,1fr) auto auto; margin-top: 8px; }
+.invite-share { margin-top: 12px; }
+.invite-share-toggle { background: #edf3e7; border-color: #c9d7c1; color: var(--green); }
+.invite-share-body { display: grid; grid-template-columns: 154px minmax(0,1fr); gap: 15px; margin-top: 9px; padding: 14px; border: 1px solid #d9dfd8; border-radius: 9px; background: #f4f6f1; }
+.invite-qr { display: grid; place-items: center; width: 154px; min-height: 154px; padding: 7px; border: 1px solid #d8ded6; border-radius: 8px; background: #fafbf6; }
+.invite-qr img { display: block; width: 140px; height: 140px; }
+.qr-placeholder { color: var(--muted); font-size: 9px; line-height: 1.5; text-align: center; }
+.invite-share-details { min-width: 0; }
+.invite-share-details > strong, .invite-share-details > small { display: block; }
+.invite-share-details > strong { margin: 7px 0 4px; font-size: 12px; }
+.invite-share-details > small { color: var(--muted); font-size: 9px; }
+.session .invite-share-details > code { margin: 11px 0 9px; padding: 8px; overflow-wrap: anywhere; border-radius: 6px; background: #16201d; color: #c8d4cd; font-size: 8px; line-height: 1.45; white-space: normal; }
+.invite-share-actions { display: flex; gap: 7px; }
+.invite-share-actions button { padding: 7px 10px; font-size: 9px; }
+.invite-warning { margin: 10px 0; color: #725d42; font-size: 9px; line-height: 1.5; }
+.invite-share details { padding-top: 8px; border-top: 1px solid #d9dfd8; }
+.invite-share summary { color: var(--muted); cursor: pointer; font-size: 9px; }
+.invite-share details button { margin-top: 8px; padding: 6px 9px; font-size: 9px; }
 dl { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:15px 0; } dl div { border-top:1px solid #e4e7e1; padding-top:8px; } dt { color:var(--muted); font-size:9px; text-transform:uppercase; } dd { margin:4px 0 0; font-size:11px; }
 .inline-error { color:#a2443e; font-size:10px; line-height:1.5; margin:8px 0; }
 .device-list { display:flex; flex-direction:column; gap:8px; margin-top:18px; }.device-list article { display:grid; grid-template-columns:42px 1fr auto; gap:12px; align-items:center; padding:13px; background:var(--paper); border:1px solid var(--line); border-radius:9px; }.device-mark { display:grid; place-items:center; width:38px; height:38px; border-radius:8px; background:#1c3029; color:var(--lime); font:10px DM Mono,monospace; }.device-list strong,.device-list code { display:block; }.device-list strong { font-size:12px; }.device-list code { margin-top:4px; color:var(--muted); font:9px DM Mono,monospace; }
@@ -113,4 +135,4 @@ dl { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:15px 0; } dl 
 .fatal-screen code { max-width: 720px; padding: 14px; border: 1px solid #edceca; border-radius: 8px; background: #fff2ef; color: #7d332f; white-space: pre-wrap; }
 .busy-line { position:fixed; z-index:30; top:0; left:224px; right:0; height:2px; background:linear-gradient(90deg,transparent,var(--lime),transparent); animation:busy 1.1s infinite linear; transform-origin:left; }
 @keyframes busy { 0%{transform:scaleX(.05) translateX(-80%)} 50%{transform:scaleX(.5) translateX(40%)} 100%{transform:scaleX(.05) translateX(1800%)} }
-@media(max-width:980px){.hero{grid-template-columns:1fr}.signal{display:none}.metrics{grid-template-columns:1fr 1fr}.session-grid{grid-template-columns:1fr}.transfer-list article{grid-template-columns:40px 1fr auto}.transfer-list article>button{grid-column:2}}
+@media(max-width:980px){.hero{grid-template-columns:1fr}.signal{display:none}.metrics{grid-template-columns:1fr 1fr}.session-grid{grid-template-columns:1fr}.transfer-list article{grid-template-columns:40px 1fr auto}.transfer-list article>button{grid-column:2}.invite-share-body{grid-template-columns:154px minmax(0,1fr)}}

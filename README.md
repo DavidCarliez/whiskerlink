@@ -19,7 +19,7 @@ WhiskerLink creates an end-to-end encrypted WireGuard path between two peers. It
 - Verify completed files with SHA-256 before moving them into place.
 - Queue, pause, resume, and review transfer activity.
 - Share a local TCP service through a temporary or persistent Tailcat identity.
-- Share a complete `whiskerlink://` service invite that opens on a free loopback port.
+- Share complete file and service invites as local QR codes or `whiskerlink://` links.
 - Store persistent tokens and private keys in the operating-system credential manager.
 - Receive a one-file or one-folder offer with the stock Tailcat CLI—no GUI required.
 - Stay available from the system tray without leaving a visible window open.
@@ -44,7 +44,7 @@ Linux requires GTK 3 and WebKitGTK 4.1 at runtime. Package names vary by distrib
 2. Choose files or choose one folder.
 3. Optionally name the transfer and select the trusted host identity.
 4. Create the offer.
-5. Open **Activity** and copy the generated `whiskerlink://receive` invite.
+5. Open **Activity**, choose **Share invite**, then show the local QR code or copy the generated `whiskerlink://receive` invite.
 6. Keep the session open until the receiver confirms completion.
 
 A receiver running WhiskerLink can open the invite or paste it into **Receive files**. WhiskerLink validates the capability and inspects the manifest automatically, but nothing is written until the receiver selects files, chooses a destination and collision policy, and explicitly accepts.
@@ -74,12 +74,14 @@ Multiple independent selections use WhiskerLink's richer transfer protocol and r
 ## Share a service
 
 1. Open **Share service**, choose HTTP, HTTPS, or TCP, and enter the local and remote ports.
-2. Start sharing and send the generated `whiskerlink://` invite to the recipient.
-3. The recipient opens the invite with WhiskerLink or pastes it into **Connect service**.
+2. Start sharing, choose **Share invite**, then show the local QR code or copy the generated `whiskerlink://connect` invite.
+3. The recipient scans or opens the invite with WhiskerLink, or pastes it into **Connect service**.
 4. WhiskerLink fills the token, service type, label, and remote port, then selects a free local port.
 5. HTTP and HTTPS services can open in the default browser automatically. Other clients connect to the displayed `127.0.0.1` address.
 
 Installed packages register the `whiskerlink` URL scheme. When running an unpacked binary, copy and paste the invite into **Connect service** instead.
+
+QR codes are generated entirely on-device. WhiskerLink falls back to copy-only sharing if an invite is too large for a reliable QR code.
 
 ### Service client without WhiskerLink
 
@@ -106,6 +108,7 @@ Only the configured TCP port is exposed. WhiskerLink does not advertise the host
 ## Security model
 
 - A `tc…` token—and every `whiskerlink://` invite containing one—is a capability. Anyone holding it can connect while the corresponding offer or service is running. Treat it as a secret.
+- QR codes are hidden until **Share invite** is opened. They encode the full capability even though the adjacent text preview is redacted.
 - Temporary sessions generate an in-memory identity that disappears when the session stops.
 - Persistent identities remain reachable by previously shared tokens until rotated.
 - Persistent private keys and full trusted-device tokens are stored in the OS credential manager.

@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Name=WhiskerLink
+Comment=Private paths for files and services, powered by Tailcat
+# The Exec line includes %u to pass the URL to the application
+Exec=/usr/local/bin/whiskerlink %u
+Terminal=false
+Type=Application
+Icon=whiskerlink
+Categories=Utility;
+StartupWMClass=whiskerlink
+
+ 

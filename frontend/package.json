@@ -1,0 +1,24 @@
+{
+  "name": "whiskerlink-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bun node_modules/vite/bin/vite.js",
+    "build:dev": "bun node_modules/typescript/bin/tsc && bun node_modules/vite/bin/vite.js build --minify false --mode development",
+    "build": "bun node_modules/typescript/bin/tsc && bun node_modules/vite/bin/vite.js build --mode production",
+    "preview": "bun node_modules/vite/bin/vite.js preview"
+  },
+  "dependencies": {
+    "@wailsio/runtime": "latest",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.43",
+    "@types/react-dom": "^18.2.17",
+    "@vitejs/plugin-react": "^6.0.0",
+    "typescript": "^5.2.2",
+    "vite": "^8.0.5"
+  }
+}

@@ -1,0 +1,123 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes libgtk-3-dev libwebkit2gtk-4.1-dev
+          go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.16
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: bun install --frozen-lockfile
+      - name: Build
+        run: wails3 build -tags gtk3
+      - name: Archive
+        run: |
+          archive="whiskerlink-${GITHUB_REF_NAME}-linux-amd64.tar.gz"
+          tar -C bin -czf "$archive" whiskerlink
+          sha256sum "$archive" > "$archive.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-amd64
+          path: |
+            whiskerlink-*-linux-amd64.tar.gz
+            whiskerlink-*-linux-amd64.tar.gz.sha256
+          if-no-files-found: error
+
+  windows:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install Wails
+        shell: pwsh
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.16
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: bun install --frozen-lockfile
+      - name: Build
+        run: wails3 build
+      - name: Archive
+        shell: pwsh
+        run: |
+          $archive = "whiskerlink-$env:GITHUB_REF_NAME-windows-amd64.zip"
+          Compress-Archive -Path "bin\whiskerlink.exe" -DestinationPath $archive
+          $hash = (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLower()
+          "$hash  $archive" | Out-File -FilePath "$archive.sha256" -Encoding ascii
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-amd64
+          path: |
+            whiskerlink-*-windows-amd64.zip
+            whiskerlink-*-windows-amd64.zip.sha256
+          if-no-files-found: error
+
+  macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install Wails
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.16
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: bun install --frozen-lockfile
+      - name: Package application
+        run: wails3 package
+      - name: Archive
+        run: |
+          archive="whiskerlink-${GITHUB_REF_NAME}-macos-arm64.zip"
+          ditto -c -k --sequesterRsrc --keepParent bin/whiskerlink.app "$archive"
+          shasum -a 256 "$archive" > "$archive.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-arm64
+          path: |
+            whiskerlink-*-macos-arm64.zip
+            whiskerlink-*-macos-arm64.zip.sha256
+          if-no-files-found: error
+
+  publish:
+    needs: [linux, windows, macos]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: artifacts/*
+          fail_on_unmatched_files: true

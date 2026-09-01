@@ -1238,7 +1238,7 @@ public class WailsBridge {
     public void startForegroundService(final String json) {
         mainHandler.post(() -> {
             try {
-                String title = "Wails", text = "Running in the background";
+                String title = "WhiskerLink", text = "Running in the background";
                 try {
                     JSONObject o = new JSONObject(json);
                     title = o.optString("title", title);

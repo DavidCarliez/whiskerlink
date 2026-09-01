@@ -170,9 +170,10 @@ tasks:
     dir: build
     cmds:
       - mkdir -p {{.ROOT_DIR}}/build/linux/appimage
-      - wails3 generate .desktop -name "{{.APP_NAME}}" -exec "{{.EXEC}}" -icon "{{.ICON}}" -outputfile "{{.ROOT_DIR}}/build/linux/{{.APP_NAME}}.desktop" -categories "{{.CATEGORIES}}"
+      - wails3 generate .desktop -name "{{.DISPLAY_NAME}}" -genericname "Private file and service sharing" -comment "Private paths for files and services, powered by Tailcat" -exec "{{.EXEC}}" -icon "{{.ICON}}" -outputfile "{{.ROOT_DIR}}/build/linux/{{.APP_NAME}}.desktop" -categories "{{.CATEGORIES}}" -keywords "whiskerlink;tailcat;file-transfer;peer-to-peer;"
     vars:
       APP_NAME: '{{.APP_NAME}}'
+      DISPLAY_NAME: 'WhiskerLink'
       EXEC: '{{.APP_NAME}}'
       ICON: '{{.APP_NAME}}'
       CATEGORIES: 'Network;FileTransfer;Utility;'

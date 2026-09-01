@@ -1,10 +1,12 @@
 [Desktop Entry]
 Type=Application
-Name=whiskerlink
+Name=WhiskerLink
 Exec=whiskerlink
 Icon=whiskerlink
 Categories=Network;FileTransfer;Utility;
+Comment=Private paths for files and services, powered by Tailcat
 Terminal=false
-Keywords=wails
+Keywords=whiskerlink;tailcat;file-transfer;peer-to-peer;
 Version=1.0
+GenericName=Private file and service sharing
 StartupNotify=false

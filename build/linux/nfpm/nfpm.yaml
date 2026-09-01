@@ -12,7 +12,7 @@ priority: "extra"
 maintainer: ${GIT_COMMITTER_NAME} <${GIT_COMMITTER_EMAIL}>
 description: "Private paths for files and services, powered by Tailcat"
 vendor: "David Carliez"
-homepage: "https://wails.io"
+homepage: "https://github.com/DavidCarliez/whiskerlink"
 license: "MIT"
 release: "1"
 

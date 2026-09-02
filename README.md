@@ -10,7 +10,9 @@ WhiskerLink creates an end-to-end encrypted WireGuard path between two peers. It
 
 > WhiskerLink is an independent project. It is not an official Tailscale product.
 
-![WhiskerLink overview](docs/screenshot.webp)
+[![WhiskerLink GUI demo](docs/whiskerlink-gui-demo.gif)](artifacts/whiskerlink-gui-demo.webm)
+
+*Click the animated preview to open the full-resolution WebM demo.*
 
 ## Highlights
 

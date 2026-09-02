@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { Browser, Dialogs, Events } from '@wailsio/runtime'
 import * as API from '../bindings/github.com/DavidCarliez/whiskerlink/appservice.js'
 import { createInviteQRCode, inviteKind, redactInvite } from './invites'
 import './App.css'
 
 type View = 'home' | 'send' | 'receive' | 'share' | 'connect' | 'activity' | 'devices'
+type Theme = 'light' | 'dark'
+
 
 type Session = {
   id: string; kind: string; label: string; state: string; token?: string; invite?: string; localAddress?: string
@@ -72,6 +74,25 @@ function localServiceURL(address: string, serviceType?: ServiceType): string | n
 }
 
 function App() {
+  const [theme, setTheme] = useState<Theme>(() => {
+    try {
+      const saved = window.localStorage.getItem('whiskerlink-theme')
+      if (saved === 'light' || saved === 'dark') return saved
+    } catch {
+      // The system preference remains a safe fallback when storage is unavailable.
+    }
+    return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  })
+  useLayoutEffect(() => {
+    document.documentElement.dataset.theme = theme
+    document.documentElement.style.colorScheme = theme
+    try {
+      window.localStorage.setItem('whiskerlink-theme', theme)
+    } catch {
+      // Theme still applies for this session when storage is unavailable.
+    }
+  }, [theme])
+
   const [view, setView] = useState<View>('home')
   const [snapshot, setSnapshot] = useState<Snapshot>(emptySnapshot)
   const [busy, setBusy] = useState(false)
@@ -309,7 +330,20 @@ function App() {
       </aside>
 
       <main>
-        <header><div><p className="eyebrow">ACCOUNT-FREE / END-TO-END ENCRYPTED</p><h1>{nav.find((item) => item.id === view)?.label}</h1></div><button className="quiet" onClick={() => refresh()}>Refresh</button></header>
+        <header>
+          <div><p className="eyebrow">ACCOUNT-FREE / END-TO-END ENCRYPTED</p><h1>{nav.find((item) => item.id === view)?.label}</h1></div>
+          <button
+            className="theme-toggle"
+            aria-label={`Use ${theme === 'dark' ? 'light' : 'dark'} theme`}
+            title={`Use ${theme === 'dark' ? 'light' : 'dark'} theme`}
+            onClick={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')}
+          >
+            {theme === 'dark'
+              ? <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.5" /><path d="M12 2v2.2M12 19.8V22M4.9 4.9l1.6 1.6m11 11 1.6 1.6M2 12h2.2M19.8 12H22M4.9 19.1l1.6-1.6m11-11 1.6-1.6" /></svg>
+              : <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.2 15.5A8.5 8.5 0 0 1 8.5 3.8 8.5 8.5 0 1 0 20.2 15.5Z" /></svg>}
+            <span>{theme === 'dark' ? 'Light' : 'Dark'}</span>
+          </button>
+        </header>
 
         {view === 'home' && <section className="page">
           <div className="hero"><div><p className="eyebrow">PRIVATE PATHS, ON DEMAND</p><h2>Move files. Open services.<br />Leave no network behind.</h2><p>WhiskerLink creates temporary WireGuard paths through Tailcat without accounts, firewall rules, or device enrollment.</p><div className="actions"><button className="primary" onClick={() => setView('send')}>Send files</button><button onClick={() => setView('share')}>Share a service</button></div></div><div className="signal"><span>TAILCAT LINK</span><strong>{snapshot.sessions.length ? 'LIVE' : 'IDLE'}</strong><i /><small>Direct path when possible<br />DERP fallback when needed</small></div></div>
@@ -371,6 +405,37 @@ function App() {
 }
 
 type ReceiverPlatform = 'windows' | 'linux' | 'macos'
+const platformLabels: Record<ReceiverPlatform, string> = {
+  windows: 'Windows',
+  linux: 'Linux',
+  macos: 'macOS',
+}
+
+function PlatformIcon({ platform }: { platform: ReceiverPlatform }) {
+  if (platform === 'windows') {
+    return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4.5 10.5 3.4v7.7H3V4.5Zm8.5-1.2L21 2v9.1h-9.5V3.3ZM3 12.1h7.5v7.7L3 18.7v-6.6Zm8.5 0H21V21l-9.5-1.1v-7.8Z" /></svg>
+  }
+  if (platform === 'linux') {
+    return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.1c-2.8 0-4.4 2.5-4.4 5.9 0 1.2-.4 2.2-1.2 3.4-1.1 1.6-1.8 3.2-1.2 4.6.4.9 1.3 1.4 2.5 1.4.9 0 1.7-.3 2.4-.8.6.4 1.2.6 1.9.6s1.4-.2 1.9-.6c.7.5 1.5.8 2.4.8 1.2 0 2.1-.5 2.5-1.4.6-1.4-.1-3-1.2-4.6-.8-1.2-1.2-2.2-1.2-3.4 0-3.4-1.6-5.9-4.4-5.9Zm-1.5 4.1c-.5 0-.9-.5-.9-1.1s.4-1.1.9-1.1.9.5.9 1.1-.4 1.1-.9 1.1Zm3 0c-.5 0-.9-.5-.9-1.1s.4-1.1.9-1.1.9.5.9 1.1-.4 1.1-.9 1.1Zm-3.3 2.1c.5-.5 1.1-.8 1.8-.8s1.3.3 1.8.8c-.5.8-1.1 1.2-1.8 1.2s-1.3-.4-1.8-1.2Z" /></svg>
+  }
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.8 12.7c0-2 1.6-3 1.7-3.1-1-.1-2.1.6-2.6.6-.6 0-1.4-.6-2.3-.6-1.2 0-2.3.7-2.9 1.8-1.3 2.2-.3 5.5.9 7.2.6.8 1.3 1.8 2.2 1.7.9 0 1.2-.5 2.3-.5s1.4.5 2.3.5c1 0 1.6-.9 2.1-1.7.7-1 1-2 1-2.1-.1 0-1.9-.7-1.9-2.9 0-1.8 1.5-2.7 1.6-2.8-1-.9-2.4-1-2.9-1-.8 0-1.5.4-2 .4Zm1-5.2c.5-.6.8-1.5.7-2.3-.8 0-1.7.5-2.2 1.1-.5.5-.9 1.4-.8 2.2.9.1 1.7-.4 2.3-1Z" /></svg>
+}
+
+function PlatformPicker({ value, onChange, label }: { value: ReceiverPlatform; onChange: (platform: ReceiverPlatform) => void; label: string }) {
+  const platforms: ReceiverPlatform[] = ['windows', 'linux', 'macos']
+  return <div className="platform-picker" role="group" aria-label={label}>
+    {platforms.map((platform) => <button
+      key={platform}
+      type="button"
+      className={value === platform ? 'active' : ''}
+      aria-label={platformLabels[platform]}
+      aria-pressed={value === platform}
+      title={platformLabels[platform]}
+      onClick={() => onChange(platform)}
+    ><PlatformIcon platform={platform} /><span>{platformLabels[platform]}</span></button>)}
+  </div>
+}
+
 
 function receiverCommand(platform: ReceiverPlatform, token: string): string {
   if (platform === 'windows') {
@@ -468,7 +533,10 @@ function ReceiverGuide({ token, compatible, onCopied }: { token: string; compati
     ? 'Download tailcat.exe from GitHub. Windows OpenSSH Client is also required.'
     : platform === 'macos' ? 'Install first with: brew install tailcat' : 'Extract the Linux release from GitHub. OpenSSH scp is also required.'
   return <div className="receiver-guide">
-    <div className="receiver-head"><div><strong>Receiver without the GUI</strong><small>Open a terminal in the destination folder, then run this command.</small></div><select aria-label="Receiver operating system" value={platform} onChange={(event) => setPlatform(event.target.value as ReceiverPlatform)}><option value="windows">Windows</option><option value="linux">Linux release</option><option value="macos">macOS</option></select></div>
+    <div className="receiver-head">
+      <div><strong>Receiver without the GUI</strong><small>Open a terminal in the destination folder, then run this command.</small></div>
+      <PlatformPicker value={platform} onChange={setPlatform} label="Receiver operating system" />
+    </div>
     <div className="receiver-command"><code>{command}</code><button onClick={() => navigator.clipboard.writeText(command).then(() => onCopied('Receiver command copied.'))}>Copy command</button></div>
     <small>{installHint}</small>
     <small className="receiver-status-note">CLI downloads do not report progress back to this app. Keep the offer open until the receiver confirms completion, then stop the session.</small>
@@ -482,7 +550,10 @@ function ServiceClientGuide({ token, port, onCopied }: { token: string; port: nu
     : `${binary} socks --listen=127.0.0.1:1080 '${token}'`
   const browserURL = `http://server.tailcat:${port}/`
   return <div className="receiver-guide">
-    <div className="receiver-head"><div><strong>Client without the GUI</strong><small>Run a local SOCKS5 proxy for service port {port}.</small></div><select aria-label="Client operating system" value={platform} onChange={(event) => setPlatform(event.target.value as ReceiverPlatform)}><option value="windows">Windows</option><option value="linux">Linux release</option><option value="macos">macOS</option></select></div>
+    <div className="receiver-head">
+      <div><strong>Client without the GUI</strong><small>Run a local SOCKS5 proxy for service port {port}.</small></div>
+      <PlatformPicker value={platform} onChange={setPlatform} label="Client operating system" />
+    </div>
     <div className="receiver-command"><code>{command}</code><button onClick={() => navigator.clipboard.writeText(command).then(() => onCopied('Proxy command copied.'))}>Copy proxy command</button></div>
     <small>Configure the client application to use SOCKS5 proxy <code>127.0.0.1:1080</code> and connect to <code>server.tailcat:{port}</code>.</small>
     <div className="receiver-command service-url"><code>{browserURL}</code><button onClick={() => navigator.clipboard.writeText(browserURL).then(() => onCopied('HTTP service URL copied.'))}>Copy HTTP URL</button></div>

@@ -6,6 +6,7 @@ func TestInviteFromArgs(t *testing.T) {
 	for _, invite := range []string{
 		"whiskerlink://connect?token=example&port=80&type=http",
 		"whiskerlink://receive?token=example",
+		"whiskerlink://pair?token=example",
 	} {
 		if got := inviteFromArgs([]string{"whiskerlink", "--verbose", invite}); got != invite {
 			t.Fatalf("inviteFromArgs() = %q, want %q", got, invite)

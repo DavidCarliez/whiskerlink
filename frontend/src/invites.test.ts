@@ -6,6 +6,7 @@ const fileInvite = 'whiskerlink://receive?token=tcomFwWCCcjS5nKNqAod034nWoJZW0LZ
 describe('invite helpers', () => {
   test('routes supported invite kinds', () => {
     expect(inviteKind(fileInvite)).toBe('receive')
+    expect(inviteKind('whiskerlink://pair?token=private&secret=private')).toBe('pair')
     expect(inviteKind('whiskerlink://connect?token=tc&port=80&type=http')).toBe('connect')
     expect(inviteKind('https://example.com')).toBeNull()
   })
@@ -14,6 +15,11 @@ describe('invite helpers', () => {
     const redacted = redactInvite(fileInvite)
     expect(redacted).toContain('tcomFwWCCc…pGQEu')
     expect(redacted).not.toContain('tcomFwWCCcjS5nKNqAod034nWoJZW0LZqDhhC8U_dKdnDRYQ8uNGFpGQEu')
+  })
+
+  test('does not expose pairing credentials in redacted text', () => {
+    const redacted = redactInvite('whiskerlink://pair?token=private-endpoint&secret=private-secret&key=private-key')
+    expect(redacted).not.toContain('private-')
   })
 
   test('generates QR data locally and rejects oversized payloads', async () => {

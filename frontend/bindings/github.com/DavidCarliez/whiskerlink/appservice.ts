@@ -10,13 +10,24 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 import * as domain$0 from "./internal/domain/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as peer$0 from "./internal/peer/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as tailnet$0 from "./internal/tailnet/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import * as transfer$0 from "./internal/transfer/models.js";
 
+export function AcceptIncoming(id: string, destination: string, selected: string[] | null, collision: string): $CancellablePromise<domain$0.Transfer> {
+    return $Call.ByID(2912689330, id, destination, selected, collision);
+}
+
 export function AddTrustedDevice(name: string, token: string): $CancellablePromise<domain$0.TrustedDevice> {
     return $Call.ByID(77881618, name, token);
+}
+
+export function ConfirmPairing(id: string): $CancellablePromise<void> {
+    return $Call.ByID(2031912654, id);
 }
 
 export function ConnectService(req: tailnet$0.ConnectServiceRequest): $CancellablePromise<domain$0.Session> {
@@ -27,12 +38,32 @@ export function ConnectTrustedService(deviceID: string, label: string, remotePor
     return $Call.ByID(265948694, deviceID, label, remotePort, localPort, serviceType);
 }
 
+export function CreatePairingInvite(): $CancellablePromise<peer$0.Invitation> {
+    return $Call.ByID(4000028787);
+}
+
+export function DeclineIncoming(id: string): $CancellablePromise<void> {
+    return $Call.ByID(1225632876, id);
+}
+
+export function EnablePairing(name: string): $CancellablePromise<void> {
+    return $Call.ByID(4003291387, name);
+}
+
 export function InspectFileOffer(token: string): $CancellablePromise<domain$0.FileManifest> {
     return $Call.ByID(995657534, token);
 }
 
+export function InspectIncoming(id: string): $CancellablePromise<domain$0.FileManifest> {
+    return $Call.ByID(2045753918, id);
+}
+
 export function InspectTrustedFileOffer(deviceID: string): $CancellablePromise<domain$0.FileManifest> {
     return $Call.ByID(3232435551, deviceID);
+}
+
+export function JoinPairingInvite(value: string): $CancellablePromise<peer$0.Device> {
+    return $Call.ByID(205279355, value);
 }
 
 export function ParseFileInvite(value: string): $CancellablePromise<domain$0.FileInvite> {
@@ -45,6 +76,10 @@ export function ParseServiceInvite(value: string): $CancellablePromise<domain$0.
 
 export function PauseTransfer(id: string): $CancellablePromise<void> {
     return $Call.ByID(3115319327, id);
+}
+
+export function PeerSnapshot(): $CancellablePromise<peer$0.Snapshot> {
+    return $Call.ByID(482911814);
 }
 
 export function ReceiveFiles(req: transfer$0.ReceiveRequest): $CancellablePromise<domain$0.Transfer> {
@@ -61,6 +96,10 @@ export function RemoveTrustedDevice(id: string): $CancellablePromise<void> {
 
 export function ResumeTransfer(id: string): $CancellablePromise<void> {
     return $Call.ByID(907302374, id);
+}
+
+export function SendToDevice(id: string, paths: string[] | null, label: string): $CancellablePromise<peer$0.Delivery> {
+    return $Call.ByID(2497120143, id, paths, label);
 }
 
 export function ShareService(req: tailnet$0.ShareServiceRequest): $CancellablePromise<domain$0.Session> {
@@ -81,4 +120,8 @@ export function StopSession(id: string): $CancellablePromise<void> {
 
 export function TakePendingInvite(): $CancellablePromise<string> {
     return $Call.ByID(1099784657);
+}
+
+export function UnpairDevice(id: string): $CancellablePromise<void> {
+    return $Call.ByID(263189203, id);
 }

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -24,10 +25,12 @@ import (
 )
 
 type ReceiveRequest struct {
-	Token       string   `json:"token"`
-	Destination string   `json:"destination"`
-	Selected    []string `json:"selected"`
-	Collision   string   `json:"collision"`
+	TransferID       string   `json:"-"`
+	Token            string   `json:"token"`
+	Destination      string   `json:"destination"`
+	Selected         []string `json:"selected"`
+	Collision        string   `json:"collision"`
+	ExpectedManifest string   `json:"expectedManifest,omitempty"`
 }
 
 type StartOfferRequest struct {
@@ -58,6 +61,8 @@ type Manager struct {
 	identity  *tailnet.IdentityStore
 	onChange  func()
 	closed    chan struct{}
+	wg        sync.WaitGroup
+	done      map[string]chan struct{}
 }
 
 func NewManager(store *storage.Store, onChange func()) (*Manager, error) {
@@ -65,7 +70,7 @@ func NewManager(store *storage.Store, onChange func()) (*Manager, error) {
 		transfers: make(map[string]domain.Transfer), jobs: make(map[string]receiveJob),
 		cancels: make(map[string]context.CancelFunc), offers: make(map[string]*offerRuntime),
 		queue: make(chan string, 128), store: store, identity: tailnet.NewIdentityStore(store),
-		onChange: onChange, closed: make(chan struct{}),
+		onChange: onChange, closed: make(chan struct{}), done: make(map[string]chan struct{}),
 	}
 	previous, err := store.ListTransfers(context.Background())
 	if err != nil {
@@ -80,7 +85,8 @@ func NewManager(store *storage.Store, onChange func()) (*Manager, error) {
 		}
 		m.transfers[transfer.ID] = transfer
 	}
-	go m.worker()
+	m.wg.Add(1)
+	go func() { defer m.wg.Done(); m.worker() }()
 	return m, nil
 }
 
@@ -116,6 +122,41 @@ func (m *Manager) StartOffer(ctx context.Context, req StartOfferRequest) (domain
 	if err != nil {
 		return domain.Session{}, err
 	}
+	return m.startOffer(ctx, req, offer, "")
+}
+
+// StartPairedOffer restores a dedicated offer identity after restart, but only
+// when the file metadata and hashes still match the originally queued offer.
+func (m *Manager) StartPairedOffer(ctx context.Context, paths []string, label, id, expected string) (domain.Session, domain.FileManifest, error) {
+	if _, err := uuid.Parse(id); err != nil {
+		return domain.Session{}, domain.FileManifest{}, err
+	}
+	if expected != "" {
+		for _, name := range []string{"identity:paired-offer:" + id, "identity-token:paired-offer:" + id} {
+			if _, err := m.store.Secrets.Get(name); err != nil {
+				return domain.Session{}, domain.FileManifest{}, errors.New("saved offer credentials unavailable; unpair this device, pair again, and resend")
+			}
+		}
+	}
+	offer, err := BuildOffer(paths, label)
+	if err != nil {
+		return domain.Session{}, domain.FileManifest{}, err
+	}
+	offer.Manifest.TransferID = id
+	if expected != "" && ManifestDigest(offer.Manifest) != expected {
+		_ = offer.Close()
+		return domain.Session{}, domain.FileManifest{}, errors.New("source files changed; cancel this request and send them again")
+	}
+	session, err := m.startOffer(ctx, StartOfferRequest{Paths: paths, Label: label}, offer, "paired-offer:"+id)
+	return session, offer.Manifest, err
+}
+
+func ManifestDigest(manifest domain.FileManifest) string {
+	b, _ := json.Marshal(manifest)
+	return fmt.Sprintf("%x", sha256.Sum256(b))
+}
+
+func (m *Manager) startOffer(ctx context.Context, req StartOfferRequest, offer *Offer, identityName string) (domain.Session, error) {
 	now := time.Now()
 	transfer := domain.Transfer{
 		ID: offer.Manifest.TransferID, Direction: domain.TransferSend, Label: offer.Manifest.Label,
@@ -149,8 +190,12 @@ func (m *Manager) StartOffer(ctx context.Context, req StartOfferRequest) (domain
 			return nil
 		}
 	}}
-	if req.Persistent {
-		if err := m.identity.ConfigureServer(server); err != nil {
+	identity := m.identity
+	if identityName != "" {
+		identity = tailnet.NewNamedIdentityStore(m.store, identityName)
+	}
+	if req.Persistent || identityName != "" {
+		if err := identity.ConfigureServer(server); err != nil {
 			_ = offer.Close()
 			m.failTransfer(transfer.ID, err)
 			return domain.Session{}, err
@@ -162,8 +207,8 @@ func (m *Manager) StartOffer(ctx context.Context, req StartOfferRequest) (domain
 		return domain.Session{}, fmt.Errorf("start file offer: %w", err)
 	}
 	token := string(server.ConnBlob())
-	if req.Persistent {
-		if err := m.identity.SaveServer(server.Key, token); err != nil {
+	if req.Persistent || identityName != "" {
+		if err := identity.SaveServer(server.Key, token); err != nil {
 			_ = server.Close()
 			_ = offer.Close()
 			m.failTransfer(transfer.ID, err)
@@ -207,6 +252,7 @@ func (m *Manager) Inspect(ctx context.Context, token string) (domain.FileManifes
 		return domain.FileManifest{}, fmt.Errorf("connect to file offer: %w", err)
 	}
 	defer conn.Close()
+	_ = conn.SetDeadline(time.Now().Add(20 * time.Second))
 	if err := writeJSONLine(conn, request{Version: ProtocolVersion, Action: "manifest"}); err != nil {
 		return domain.FileManifest{}, err
 	}
@@ -250,6 +296,17 @@ func validateManifest(manifest domain.FileManifest) error {
 }
 
 func (m *Manager) StartReceive(ctx context.Context, req ReceiveRequest) (domain.Transfer, error) {
+	if req.TransferID != "" {
+		if _, err := uuid.Parse(req.TransferID); err != nil {
+			return domain.Transfer{}, err
+		}
+		m.mu.RLock()
+		existing, ok := m.transfers[req.TransferID]
+		m.mu.RUnlock()
+		if ok {
+			return existing, nil
+		}
+	}
 	if req.Destination == "" {
 		return domain.Transfer{}, errors.New("choose a destination folder")
 	}
@@ -266,6 +323,9 @@ func (m *Manager) StartReceive(ctx context.Context, req ReceiveRequest) (domain.
 	if err != nil {
 		return domain.Transfer{}, err
 	}
+	if req.ExpectedManifest != "" && ManifestDigest(manifest) != req.ExpectedManifest {
+		return domain.Transfer{}, errors.New("offer changed since inspection; inspect it again")
+	}
 	selected := selectedEntries(manifest, req.Selected)
 	if len(selected) == 0 {
 		return domain.Transfer{}, errors.New("select at least one offered file")
@@ -281,13 +341,16 @@ func (m *Manager) StartReceive(ctx context.Context, req ReceiveRequest) (domain.
 		CreatedAt: now, UpdatedAt: now,
 	}
 	state := storage.ReceiveState{Manifest: manifest, Selected: req.Selected, Collision: req.Collision}
-	if err := m.store.UpsertTransfer(ctx, transfer); err != nil {
+	if req.TransferID != "" {
+		transfer.ID = req.TransferID
+	}
+	if err := m.store.Secrets.Set("transfer-token:"+transfer.ID, req.Token); err != nil {
+		return domain.Transfer{}, fmt.Errorf("persist resumable transfer token: %w", err)
+	}
+	if err := m.store.CreateReceive(transfer, state); err != nil {
+		_ = m.store.Secrets.Delete("transfer-token:" + transfer.ID)
 		return domain.Transfer{}, err
 	}
-	if err := m.store.SaveReceiveState(ctx, transfer.ID, state); err != nil {
-		return domain.Transfer{}, err
-	}
-	_ = m.store.Secrets.Set("transfer-token:"+transfer.ID, req.Token)
 	m.mu.Lock()
 	m.transfers[transfer.ID] = transfer
 	m.jobs[transfer.ID] = receiveJob{token: req.Token, state: state}
@@ -327,17 +390,28 @@ func (m *Manager) worker() {
 
 func (m *Manager) runReceive(id string) {
 	m.mu.Lock()
+	select {
+	case <-m.closed:
+		m.mu.Unlock()
+		return
+	default:
+	}
 	job, ok := m.jobs[id]
 	if !ok {
 		m.mu.Unlock()
 		return
 	}
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	m.cancels[id] = cancel
+	done := make(chan struct{})
+	m.done[id] = done
 	m.mu.Unlock()
 	defer func() {
 		m.mu.Lock()
 		delete(m.cancels, id)
+		delete(m.done, id)
+		close(done)
 		m.mu.Unlock()
 	}()
 
@@ -439,6 +513,8 @@ func (m *Manager) receiveFile(ctx context.Context, client *tailcat.Client, trans
 		file.Close()
 		return fmt.Errorf("connect for %s: %w", entry.Path, err)
 	}
+	stopOnCancel := context.AfterFunc(ctx, func() { _ = conn.Close() })
+	defer stopOnCancel()
 	reader := bufio.NewReader(conn)
 	if err := writeJSONLine(conn, request{Version: ProtocolVersion, Action: "get", TransferID: job.state.Manifest.TransferID, Path: entry.Path, Offset: offset}); err != nil {
 		conn.Close()
@@ -546,6 +622,35 @@ func (m *Manager) Pause(id string) error {
 	return nil
 }
 
+// Cancel permanently revokes resume credentials, retaining already received files.
+func (m *Manager) Cancel(id string) error {
+	m.mu.Lock()
+	cancel := m.cancels[id]
+	done := m.done[id]
+	delete(m.jobs, id)
+	m.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	if done != nil {
+		<-done
+	}
+	m.mu.Lock()
+	delete(m.jobs, id)
+	m.mu.Unlock()
+	m.updateTransfer(id, func(t *domain.Transfer) {
+		if t.State != "completed" {
+			t.State = "cancelled"
+			t.Error = ""
+		}
+	})
+	err := m.store.Secrets.Delete("transfer-token:" + id)
+	if errors.Is(err, storage.ErrSecretNotFound) {
+		err = nil
+	}
+	return errors.Join(err, m.store.DeleteReceiveState(context.Background(), id))
+}
+
 func (m *Manager) Resume(id string) error {
 	m.mu.Lock()
 	transfer, ok := m.transfers[id]
@@ -627,6 +732,7 @@ func (m *Manager) Close() {
 	offers := m.offers
 	m.offers = make(map[string]*offerRuntime)
 	m.mu.Unlock()
+	m.wg.Wait()
 	for _, offer := range offers {
 		_ = offer.server.Close()
 		_ = offer.offer.Close()

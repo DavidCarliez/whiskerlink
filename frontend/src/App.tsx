@@ -3,8 +3,9 @@ import { Browser, Dialogs, Events } from '@wailsio/runtime'
 import * as API from '../bindings/github.com/DavidCarliez/whiskerlink/appservice.js'
 import { createInviteQRCode, inviteKind, redactInvite } from './invites'
 import './App.css'
+import { Peers, emptyPeers, type PeerSnapshot } from './Peers'
 
-type View = 'home' | 'send' | 'receive' | 'share' | 'connect' | 'activity' | 'devices'
+type View = 'home' | 'send' | 'receive' | 'share' | 'connect' | 'activity' | 'devices' | 'peers'
 type Theme = 'light' | 'dark'
 
 
@@ -46,6 +47,7 @@ const nav: { id: View; label: string; mark: string }[] = [
   { id: 'connect', label: 'Connect service', mark: '05' },
   { id: 'activity', label: 'Activity', mark: '06' },
   { id: 'devices', label: 'Trusted devices', mark: '07' },
+  { id: 'peers', label: 'Paired inbox', mark: '08' },
 ]
 
 function formatBytes(bytes: number): string {
@@ -99,6 +101,17 @@ function App() {
   const [notice, setNotice] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
 
   const [sendPaths, setSendPaths] = useState<string[]>([])
+  const [sendDevice, setSendDevice] = useState('')
+  const [peers, setPeers] = useState<PeerSnapshot>(emptyPeers)
+  const [pairInvite, setPairInvite] = useState('')
+  const normalizePeers = (result: Awaited<ReturnType<typeof API.PeerSnapshot>>): PeerSnapshot => ({ ...result, devices: result.devices ?? [], inbox: result.inbox ?? [], outbox: result.outbox ?? [] })
+  const refreshPeers = async () => setPeers(normalizePeers(await API.PeerSnapshot()))
+  useEffect(() => {
+    let active = true
+    const poll = async () => { try { const result = await API.PeerSnapshot(); if (active) setPeers(normalizePeers(result)) } catch { /* Normal UI notices report actionable pairing errors. */ } }
+    void poll(); const timer = window.setInterval(() => void poll(), 2000)
+    return () => { active = false; window.clearInterval(timer) }
+  }, [])
   const [sendLabel, setSendLabel] = useState('')
   const [sendPersistent, setSendPersistent] = useState(false)
 
@@ -165,6 +178,7 @@ function App() {
 
   const applyInvite = async (value: string) => {
     const kind = inviteKind(value)
+    if (kind === 'pair') { setPairInvite(value); setView('peers'); return }
     if (kind === 'receive') {
       await applyFileInvite(value)
       return
@@ -261,6 +275,11 @@ function App() {
   }
 
   const startFileOffer = async () => {
+    if (sendDevice) {
+      const delivery = await run(() => API.SendToDevice(sendDevice, sendPaths, sendLabel), 'Files queued for the paired device. The recipient must accept them.')
+      if (delivery) { await refreshPeers(); setView('peers'); setSendPaths([]); setSendLabel('') }
+      return
+    }
     const session = await run(() => API.StartFileOffer({ paths: sendPaths, label: sendLabel, persistent: sendPersistent }), 'File offer is ready to share.') as Session | undefined
     if (session) {
       setView('activity')
@@ -318,7 +337,7 @@ function App() {
     }
   }
 
-  const activeTransfers = snapshot.transfers.filter((item) => !['completed', 'failed'].includes(item.state))
+  const activeTransfers = snapshot.transfers.filter((item) => !['completed', 'failed', 'cancelled'].includes(item.state))
   const latest = useMemo(() => snapshot.transfers.slice(0, 4), [snapshot.transfers])
 
   return (
@@ -352,8 +371,10 @@ function App() {
           <TransferList transfers={latest} onPause={(id) => run(() => API.PauseTransfer(id), 'Transfer paused.')} onResume={(id) => run(() => API.ResumeTransfer(id), 'Transfer queued to resume.')} />
         </section>}
 
-        {view === 'send' && <section className="page narrow"><Intro number="01" title="Offer files directly" text="The sender hosts an ephemeral encrypted offer. The recipient inspects it, chooses what to accept, and pulls files directly or through DERP." />
-          <div className="panel form-panel"><label>Transfer label<input value={sendLabel} onChange={(e) => setSendLabel(e.target.value)} placeholder="Release artifacts" /></label><label>Files and folders<div className="picker"><button onClick={chooseSendFiles}>Choose files</button><button onClick={chooseSendFolder}>Choose folder</button><span>{sendPaths.length ? `${sendPaths.length} selected` : 'Nothing selected yet'}</span></div></label>{sendPaths.length > 0 && <div className="path-list">{sendPaths.map((path) => <span key={path}>{path}</span>)}</div>}<label className="switch-row"><input type="checkbox" checked={sendPersistent} onChange={(e) => setSendPersistent(e.target.checked)} /><span><strong>Use trusted host identity</strong><small>Keeps the same Tailcat identity in the OS credential store.</small></span></label><button className="primary wide" disabled={busy || !sendPaths.length} onClick={startFileOffer}>Create file offer</button></div>
+        {view === 'peers' && <Peers snapshot={peers} refresh={refreshPeers} incomingInvite={pairInvite} onInviteHandled={() => setPairInvite('')} activity={() => setView('activity')} />}
+        {view === 'send' && <section className="page narrow"><Intro number="01" title="Offer files directly" text="Send to a paired computer or create an invite. The recipient inspects the files and chooses what to accept." />
+          <div className="panel form-panel send-target"><label>Send to<select value={sendDevice} onChange={e => setSendDevice(e.target.value)}><option value="">Anyone with an invite</option>{peers.devices.filter(d => d.state === 'paired').map(d => <option key={d.id} value={d.id}>{d.name} · {d.online ? 'reachable' : 'queue until reachable'}</option>)}</select></label><button className="quiet" onClick={() => setView('peers')}>Pair a computer</button>{sendDevice && <small>This request goes to the device inbox. Offline requests remain queued on this computer.</small>}</div>
+          <div className="panel form-panel"><label>Transfer label<input value={sendLabel} onChange={(e) => setSendLabel(e.target.value)} placeholder="Release artifacts" /></label><label>Files and folders<div className="picker"><button onClick={chooseSendFiles}>Choose files</button><button onClick={chooseSendFolder}>Choose folder</button><span>{sendPaths.length ? `${sendPaths.length} selected` : 'Nothing selected yet'}</span></div></label>{sendPaths.length > 0 && <div className="path-list">{sendPaths.map((path) => <span key={path}>{path}</span>)}</div>}{!sendDevice && <label className="switch-row"><input type="checkbox" checked={sendPersistent} onChange={(e) => setSendPersistent(e.target.checked)} /><span><strong>Use trusted host identity</strong><small>Keeps the same Tailcat identity in the OS credential store.</small></span></label>}<button className="primary wide" disabled={busy || !sendPaths.length} onClick={startFileOffer}>{sendDevice ? 'Send to device inbox' : 'Create file offer'}</button></div>
         </section>}
 
         {view === 'receive' && <section className="page narrow"><Intro number="02" title="Inspect before receiving" text="Connection metadata is validated before the manifest is shown. Nothing is written until you accept the offer." />

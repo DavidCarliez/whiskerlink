@@ -134,7 +134,7 @@ func main() {
 
 func inviteFromArgs(args []string) string {
 	for _, arg := range args {
-		if strings.HasPrefix(arg, "whiskerlink://connect?") || strings.HasPrefix(arg, "whiskerlink://receive?") {
+		if strings.HasPrefix(arg, "whiskerlink://connect?") || strings.HasPrefix(arg, "whiskerlink://receive?") || strings.HasPrefix(arg, "whiskerlink://pair?") {
 			return arg
 		}
 	}

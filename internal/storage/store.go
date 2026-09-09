@@ -42,7 +42,11 @@ func Open() (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("resolve config directory: %w", err)
 	}
-	dir := filepath.Join(configDir, "whiskerlink")
+	return OpenAt(filepath.Join(configDir, "whiskerlink"), KeyringSecrets{})
+}
+
+// OpenAt permits isolated profiles with independent credential stores.
+func OpenAt(dir string, secrets SecretStore) (*Store, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, fmt.Errorf("create config directory: %w", err)
 	}
@@ -51,7 +55,8 @@ func Open() (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open state database: %w", err)
 	}
-	s := &Store{db: db, Secrets: KeyringSecrets{}}
+	db.SetMaxOpenConns(1)
+	s := &Store{db: db, Secrets: secrets}
 	if err := s.migrate(context.Background()); err != nil {
 		db.Close()
 		return nil, err
@@ -69,6 +74,9 @@ func (s *Store) migrate(ctx context.Context) error {
 	const schema = `
 PRAGMA journal_mode = WAL;
 PRAGMA foreign_keys = ON;
+CREATE TABLE IF NOT EXISTS peer_records (
+ kind TEXT NOT NULL, id TEXT NOT NULL, value BLOB NOT NULL, PRIMARY KEY(kind,id)
+);
 CREATE TABLE IF NOT EXISTS trusted_devices (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,

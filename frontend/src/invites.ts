@@ -1,9 +1,10 @@
 import QRCode from 'qrcode'
 
-export type InviteKind = 'receive' | 'connect'
+export type InviteKind = 'receive' | 'connect' | 'pair'
 
 export function inviteKind(value: string): InviteKind | null {
   const trimmed = value.trim()
+  if (trimmed.startsWith('whiskerlink://pair?')) return 'pair'
   if (trimmed.startsWith('whiskerlink://receive?')) return 'receive'
   if (trimmed.startsWith('whiskerlink://connect?')) return 'connect'
   return null
@@ -12,6 +13,7 @@ export function inviteKind(value: string): InviteKind | null {
 export function redactInvite(value: string): string {
   try {
     const parsed = new URL(value)
+    if (parsed.host === 'pair') return 'whiskerlink://pair?credentials=hidden'
     const token = parsed.searchParams.get('token') || ''
     if (!token) return parsed.toString()
     const redacted = token.length > 16

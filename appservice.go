@@ -12,6 +12,7 @@ import (
 	"github.com/tailscale/tailcat"
 
 	"github.com/DavidCarliez/whiskerlink/internal/domain"
+	"github.com/DavidCarliez/whiskerlink/internal/peer"
 	"github.com/DavidCarliez/whiskerlink/internal/storage"
 	"github.com/DavidCarliez/whiskerlink/internal/tailnet"
 	"github.com/DavidCarliez/whiskerlink/internal/transfer"
@@ -21,6 +22,7 @@ type AppService struct {
 	store     *storage.Store
 	sessions  *tailnet.Manager
 	transfers *transfer.Manager
+	peers     *peer.Manager
 
 	emitMu sync.RWMutex
 	emit   func(domain.Snapshot)
@@ -38,6 +40,13 @@ func NewAppService(store *storage.Store) (*AppService, error) {
 		return nil, err
 	}
 	service.transfers = transfers
+	peers, err := peer.New(store, transfers)
+	if err != nil {
+		transfers.Close()
+		return nil, err
+	}
+	service.peers = peers
+	peers.Restore()
 	return service, nil
 }
 
@@ -180,7 +189,27 @@ func (a *AppService) RemoveTrustedDevice(id string) error {
 }
 
 func (a *AppService) shutdown() {
+	a.peers.Close()
 	a.sessions.StopAll()
 	a.transfers.Close()
 	_ = a.store.Close()
 }
+
+func (a *AppService) PeerSnapshot() peer.Snapshot                   { return a.peers.Snapshot() }
+func (a *AppService) EnablePairing(name string) error               { return a.peers.Enable(name) }
+func (a *AppService) CreatePairingInvite() (peer.Invitation, error) { return a.peers.CreateInvite() }
+func (a *AppService) JoinPairingInvite(value string) (peer.Device, error) {
+	return a.peers.JoinInvite(value)
+}
+func (a *AppService) ConfirmPairing(id string) error { return a.peers.Confirm(id) }
+func (a *AppService) UnpairDevice(id string) error   { return a.peers.Unpair(id) }
+func (a *AppService) SendToDevice(id string, paths []string, label string) (peer.Delivery, error) {
+	return a.peers.Send(id, paths, label)
+}
+func (a *AppService) InspectIncoming(id string) (domain.FileManifest, error) {
+	return a.peers.Inspect(id)
+}
+func (a *AppService) AcceptIncoming(id, destination string, selected []string, collision string) (domain.Transfer, error) {
+	return a.peers.Accept(id, destination, selected, collision)
+}
+func (a *AppService) DeclineIncoming(id string) error { return a.peers.Decline(id) }

@@ -1,4 +1,14 @@
 :root { font-family: Inter, ui-sans-serif, system-ui, sans-serif; color: #17211d; background: #f2f3ed; font-synthesis: none; --ink:#17211d; --muted:#66716b; --line:#d9ddd5; --paper:#fafbf6; --green:#185c45; --lime:#c6e36b; }
+.peer-columns, .peer-device-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; margin-top:20px; }
+.peers-page .form-panel h3, .peers-page .form-panel p { margin:0; }
+.peers-page .form-panel p, .peers-page .form-panel small { color:var(--muted); font-size:12px; line-height:1.6; }
+.peer-invite { display:flex; flex-direction:column; gap:12px; align-items:center; }
+.peer-invite img { width:220px; height:220px; max-width:100%; border-radius:10px; }
+.pair-code { font:600 25px monospace; letter-spacing:.1em; color:var(--green); padding:15px; border:1px solid var(--line); border-radius:8px; text-align:center; }
+.peer-requests { display:flex; flex-direction:column; gap:12px; }
+.peer-sender { display:block; margin-top:5px; }
+.peer-notice { padding:14px; background:var(--paper); border:1px solid var(--green); border-radius:8px; color:var(--green); }
+.send-target { margin-bottom:20px; }
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 800px; min-height: 100vh; background: #f2f3ed; }
 button, input, textarea, select { font: inherit; }
@@ -211,3 +221,5 @@ dl { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:15px 0; } dl 
   .invite-share-body { grid-template-columns: 154px minmax(0,1fr); }
   .theme-toggle span { display: none; }
 }
+.peer-setup > summary { cursor: pointer; color: var(--muted); padding: 14px 0; font-weight: 600; }
+.peer-setup[open] > .panel { margin-bottom: 20px; }

@@ -6,6 +6,7 @@ export interface ReceiveRequest {
     "destination": string;
     "selected": string[] | null;
     "collision": string;
+    "expectedManifest"?: string;
 }
 
 export interface StartOfferRequest {
